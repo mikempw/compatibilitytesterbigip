@@ -1,0 +1,7 @@
+services:
+  f5-analyzer:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
