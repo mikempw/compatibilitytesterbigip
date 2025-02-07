@@ -5,6 +5,7 @@ import socket
 import traceback
 from nginx_compatibility import check_nginx_compatibility
 from f5dc_compatibility import check_f5dc_compatibility
+from irule_analyzer import analyze_irule, generate_service_policy_template
 
 app = Flask(__name__)
 
@@ -32,6 +33,10 @@ class F5BIGIPAnalyzer:
             irules = self.get_irules(ssh)
             print(f"Found {len(irules)} iRules")
 
+            print("Analyzing iRules...")
+            irule_analysis = self.analyze_irules(irules)
+            print("iRule analysis completed")
+
             print("Fetching ASM policies...")
             asm_policies = self.get_asm_policies(ssh)
             print(f"Found {len(asm_policies)} ASM policies")
@@ -41,7 +46,7 @@ class F5BIGIPAnalyzer:
             print(f"Found {len(apm_policies)} APM policies")
 
             print("Generating report...")
-            report = self.generate_report(virtual_servers, pools, irules, asm_policies, apm_policies)
+            report = self.generate_report(virtual_servers, pools, irules, irule_analysis, asm_policies, apm_policies)
 
             ssh.close()
             print("Analysis completed successfully")
@@ -93,32 +98,63 @@ class F5BIGIPAnalyzer:
                     })
         return parsed_configs
 
-    def generate_report(self, virtual_servers, pools, irules, asm_policies, apm_policies):
-            report = {
-                "summary": {
-                    "virtual_servers": len(virtual_servers),
-                    "pools": len(pools),
-                    "irules": len(irules),
-                    "asm_policies": len(asm_policies),
-                    "apm_policies": len(apm_policies)
+    def analyze_irules(self, irules):
+        """Analyze all iRules and their compatibility with service policies"""
+        irule_analysis = {}
+        for irule in irules:
+            # Extract the actual iRule content
+            content_match = re.search(r'{(.+?)}$', irule['config'], re.DOTALL)
+            if content_match:
+                irule_content = content_match.group(1).strip()
+                analysis = analyze_irule(irule_content)
+                
+                # Generate service policy template if there are mappable features
+                if analysis["mappable"]:
+                    analysis["service_policy_template"] = generate_service_policy_template(analysis)
+                
+                irule_analysis[irule['name']] = analysis
+        
+        return irule_analysis
+
+    def get_associated_irules(self, vs_config):
+        """Get list of iRules associated with a virtual server"""
+        rules_match = re.search(r'rules\s*{([^}]+)}', vs_config)
+        if rules_match:
+            return [rule.strip() for rule in rules_match.group(1).split()]
+        return []
+
+    def generate_report(self, virtual_servers, pools, irules, irule_analysis, asm_policies, apm_policies):
+        report = {
+            "summary": {
+                "virtual_servers": len(virtual_servers),
+                "pools": len(pools),
+                "irules": len(irules),
+                "asm_policies": len(asm_policies),
+                "apm_policies": len(apm_policies)
+            },
+            "virtual_servers": [],
+            "irules_analysis": irule_analysis  # Add complete iRule analysis to report
+        }
+
+        for vs in virtual_servers:
+            associated_irules = self.get_associated_irules(vs['config'])
+            
+            vs_report = {
+                "name": vs['name'],
+                "destination": self.extract_destination(vs['config']),
+                "pool": self.extract_pool(vs['config']),
+                "pool_members": self.get_pool_members(vs['config'], pools),
+                "irules": associated_irules,
+                "irules_analysis": {  # Add analysis for associated iRules
+                    irule: irule_analysis.get(irule, {})
+                    for irule in associated_irules
                 },
-                "virtual_servers": []
+                "nginx_compatibility": check_nginx_compatibility(vs['config']),
+                "f5dc_compatibility": check_f5dc_compatibility(vs['config'])
             }
-    
-            for vs in virtual_servers:
-                vs_report = {
-                    "name": vs['name'],
-                    "destination": self.extract_destination(vs['config']),
-                    "pool": self.extract_pool(vs['config']),
-                    "pool_members": self.get_pool_members(vs['config'], pools),
-                    "irules": self.extract_irules(vs['config']),
-                    "nginx_compatibility": check_nginx_compatibility(vs['config']),
-                    # Changed this line to handle new response format
-                    "f5dc_compatibility": check_f5dc_compatibility(vs['config'])  # Now returns dict with incompatible/warnings
-                }
-                report["virtual_servers"].append(vs_report)
-    
-            return report
+            report["virtual_servers"].append(vs_report)
+
+        return report
 
     def extract_destination(self, config):
         dest_match = re.search(r'destination\s+(\S+)', config)
@@ -137,10 +173,6 @@ class F5BIGIPAnalyzer:
             return []
         members = re.findall(r'(\S+):\S+\s*{\s*address\s+(\S+)', pool_config['config'])
         return [{"name": m[0], "address": m[1]} for m in members]
-
-    def extract_irules(self, config):
-        irules_match = re.findall(r'rules\s*{\s*([^}]+)}', config)
-        return irules_match[0].split() if irules_match else []
 
 analyzer = F5BIGIPAnalyzer()
 
