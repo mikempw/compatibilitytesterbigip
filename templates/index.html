@@ -116,6 +116,8 @@ function formatResults(data) {
             output += `<h4>${vs.name}</h4>`;
             output += `<p>Destination: ${vs.destination}</p>`;
             output += `<p>Pool: ${vs.pool}</p>`;
+            
+            // Pool Members section remains the same
             if (vs.pool_members && vs.pool_members.length > 0) {
                 output += '<p>Pool Members:</p><ul>';
                 vs.pool_members.forEach(member => {
@@ -125,6 +127,8 @@ function formatResults(data) {
             } else {
                 output += '<p>No pool members found.</p>';
             }
+            
+            // iRules section remains the same
             if (vs.irules && vs.irules.length > 0) {
                 output += '<p>iRules:</p><ul>';
                 vs.irules.forEach(rule => {
@@ -134,24 +138,47 @@ function formatResults(data) {
             } else {
                 output += '<p>No iRules found.</p>';
             }
+            
+            // NGINX compatibility section remains the same
             if (vs.nginx_compatibility && vs.nginx_compatibility.length > 0) {
-                output += '<p>NGINX Compatibility:</p><ul>';
+                output += '<p>NGINX Compatibility Issues:</p><ul class="incompatible">';
                 vs.nginx_compatibility.forEach(item => {
                     output += `<li>${item}</li>`;
                 });
                 output += '</ul>';
             } else {
-                output += '<p>Fully compatible with NGINX.</p>';
+                output += '<p class="compatible">Fully compatible with NGINX.</p>';
             }
-            if (vs.f5dc_compatibility && vs.f5dc_compatibility.length > 0) {
-                output += '<p>F5 Distributed Cloud Compatibility:</p><ul>';
-                vs.f5dc_compatibility.forEach(item => {
+            
+            // Modified F5 DC compatibility section
+            output += '<div class="f5dc-compatibility">';
+            output += '<h4>F5 Distributed Cloud Compatibility:</h4>';
+            
+            // Handle incompatibilities
+            if (vs.f5dc_compatibility.incompatible && vs.f5dc_compatibility.incompatible.length > 0) {
+                output += '<p class="section-header incompatible">Incompatibilities:</p><ul class="incompatible">';
+                vs.f5dc_compatibility.incompatible.forEach(item => {
                     output += `<li>${item}</li>`;
                 });
                 output += '</ul>';
-            } else {
-                output += '<p>Fully compatible with F5 Distributed Cloud.</p>';
             }
+            
+            // Handle warnings
+            if (vs.f5dc_compatibility.warnings && vs.f5dc_compatibility.warnings.length > 0) {
+                output += '<p class="section-header warning">Warnings - Requires Investigation:</p><ul class="warning">';
+                vs.f5dc_compatibility.warnings.forEach(item => {
+                    output += `<li>${item}</li>`;
+                });
+                output += '</ul>';
+            }
+            
+            // If no issues or warnings
+            if ((!vs.f5dc_compatibility.incompatible || vs.f5dc_compatibility.incompatible.length === 0) && 
+                (!vs.f5dc_compatibility.warnings || vs.f5dc_compatibility.warnings.length === 0)) {
+                output += '<p class="compatible">Fully compatible with F5 Distributed Cloud.</p>';
+            }
+            
+            output += '</div>';
         });
     } else {
         output += '<p>No virtual servers found.</p>';
