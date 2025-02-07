@@ -94,30 +94,31 @@ class F5BIGIPAnalyzer:
         return parsed_configs
 
     def generate_report(self, virtual_servers, pools, irules, asm_policies, apm_policies):
-        report = {
-            "summary": {
-                "virtual_servers": len(virtual_servers),
-                "pools": len(pools),
-                "irules": len(irules),
-                "asm_policies": len(asm_policies),
-                "apm_policies": len(apm_policies)
-            },
-            "virtual_servers": []
-        }
-
-        for vs in virtual_servers:
-            vs_report = {
-                "name": vs['name'],
-                "destination": self.extract_destination(vs['config']),
-                "pool": self.extract_pool(vs['config']),
-                "pool_members": self.get_pool_members(vs['config'], pools),
-                "irules": self.extract_irules(vs['config']),
-                "nginx_compatibility": check_nginx_compatibility(vs['config']),
-                "f5dc_compatibility": check_f5dc_compatibility(vs['config'])
+            report = {
+                "summary": {
+                    "virtual_servers": len(virtual_servers),
+                    "pools": len(pools),
+                    "irules": len(irules),
+                    "asm_policies": len(asm_policies),
+                    "apm_policies": len(apm_policies)
+                },
+                "virtual_servers": []
             }
-            report["virtual_servers"].append(vs_report)
-
-        return report
+    
+            for vs in virtual_servers:
+                vs_report = {
+                    "name": vs['name'],
+                    "destination": self.extract_destination(vs['config']),
+                    "pool": self.extract_pool(vs['config']),
+                    "pool_members": self.get_pool_members(vs['config'], pools),
+                    "irules": self.extract_irules(vs['config']),
+                    "nginx_compatibility": check_nginx_compatibility(vs['config']),
+                    # Changed this line to handle new response format
+                    "f5dc_compatibility": check_f5dc_compatibility(vs['config'])  # Now returns dict with incompatible/warnings
+                }
+                report["virtual_servers"].append(vs_report)
+    
+            return report
 
     def extract_destination(self, config):
         dest_match = re.search(r'destination\s+(\S+)', config)
