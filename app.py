@@ -104,7 +104,7 @@ class F5BIGIPAnalyzer:
         
         # For each iRule, get its actual content
         for irule in irules:
-            stdin, stdout, stderr = ssh.exec_command(f"tmsh -q list ltm rule {irule['name']} {{ definition }}")
+            stdin, stdout, stderr = ssh.exec_command(f"tmsh -q list ltm rule {irule['name']} {{ content }}")
             definition = stdout.read().decode()
             if definition:
                 irule['content'] = definition
