@@ -73,8 +73,43 @@ class F5BIGIPAnalyzer:
         return self.parse_config(stdout.read().decode())
 
     def get_irules(self, ssh):
+        """Fetch iRules with their complete content"""
         stdin, stdout, stderr = ssh.exec_command("tmsh -q list ltm rule")
-        return self.parse_config(stdout.read().decode())
+        output = stdout.read().decode()
+        
+        irules = []
+        current_rule = None
+        current_content = []
+        
+        for line in output.split('\n'):
+            if line.startswith('ltm rule '):
+                if current_rule:
+                    irules.append({
+                        'type': 'ltm rule',
+                        'name': current_rule,
+                        'config': '\n'.join(current_content)
+                    })
+                current_rule = line.split()[2]
+                current_content = [line]
+            elif current_rule:
+                current_content.append(line)
+        
+        # Add the last rule if exists
+        if current_rule:
+            irules.append({
+                'type': 'ltm rule',
+                'name': current_rule,
+                'config': '\n'.join(current_content)
+            })
+        
+        # For each iRule, get its actual content
+        for irule in irules:
+            stdin, stdout, stderr = ssh.exec_command(f"tmsh -q list ltm rule {irule['name']} {{ definition }}")
+            definition = stdout.read().decode()
+            if definition:
+                irule['content'] = definition
+
+        return irules
 
     def get_asm_policies(self, ssh):
         stdin, stdout, stderr = ssh.exec_command("tmsh -q list asm policy")
@@ -101,18 +136,52 @@ class F5BIGIPAnalyzer:
     def analyze_irules(self, irules):
         """Analyze all iRules and their compatibility with service policies"""
         irule_analysis = {}
+        print("\nStarting iRule analysis...")
+        
         for irule in irules:
-            # Extract the actual iRule content
-            content_match = re.search(r'{(.+?)}$', irule['config'], re.DOTALL)
-            if content_match:
-                irule_content = content_match.group(1).strip()
-                analysis = analyze_irule(irule_content)
+            print(f"\nAnalyzing iRule: {irule['name']}")
+            try:
+                # Try to extract the actual iRule content from the definition
+                if 'content' in irule:
+                    content = irule['content']
+                    print(f"Found direct content for {irule['name']}")
+                else:
+                    content_match = re.search(r'definition\s*{(.*?)}', irule['config'], re.DOTALL)
+                    content = content_match.group(1).strip() if content_match else ''
+                    print(f"Extracted content from config for {irule['name']}")
                 
-                # Generate service policy template if there are mappable features
-                if analysis["mappable"]:
-                    analysis["service_policy_template"] = generate_service_policy_template(analysis)
-                
-                irule_analysis[irule['name']] = analysis
+                print(f"Content length: {len(content) if content else 0} characters")
+                if content:
+                    print("First 100 characters of content:", content[:100])
+                    analysis = analyze_irule(content)
+                    print(f"Analysis complete for {irule['name']}")
+                    print("Found features:", {
+                        "mappable": len(analysis["mappable"]),
+                        "alternatives": len(analysis["alternatives"]),
+                        "unsupported": len(analysis["unsupported"]),
+                        "warnings": len(analysis["warnings"])
+                    })
+                    
+                    if analysis["mappable"]:
+                        analysis["service_policy_template"] = generate_service_policy_template(analysis)
+                    irule_analysis[irule['name']] = analysis
+                else:
+                    print(f"No content found for {irule['name']}")
+                    irule_analysis[irule['name']] = {
+                        "mappable": [],
+                        "alternatives": [],
+                        "unsupported": [],
+                        "warnings": ["Unable to retrieve iRule content"]
+                    }
+            except Exception as e:
+                print(f"Error analyzing iRule {irule['name']}: {str(e)}")
+                print("Full error:", traceback.format_exc())
+                irule_analysis[irule['name']] = {
+                    "mappable": [],
+                    "alternatives": [],
+                    "unsupported": [],
+                    "warnings": [f"Error analyzing iRule: {str(e)}"]
+                }
         
         return irule_analysis
 
