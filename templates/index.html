@@ -55,49 +55,15 @@
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
             white-space: pre-wrap;
         }
-        .incompatible {
-            color: #dc3545;
-        }
-        .warning {
-            color: #ffc107;
-            font-weight: bold;  /* Make warnings more visible against white */
-        }
-        .compatible {
-            color: #28a745;
-        }
-        .section-header {
-            font-weight: bold;
-            margin-top: 10px;
-        }
-        .f5dc-compatibility {
-            margin: 20px 0;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background-color: #f8f9fa;
-        }
-        /* Additional styles for better readability */
-        .f5dc-compatibility ul {
-            margin: 10px 0;
-            padding-left: 20px;
-        }
-        .f5dc-compatibility li {
-            margin: 5px 0;
-        }
-        .virtual-server {
-        margin: 20px 0;
-        padding: 20px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        background-color: #fff;
-        }
-        
+
+        /* iRule Analysis Styles */
         .irules-section {
             margin: 15px 0;
             padding: 15px;
             background-color: #f8f9fa;
             border-radius: 4px;
         }
+
         .irule-block {
             margin: 10px 0;
             padding: 15px;
@@ -105,125 +71,62 @@
             background-color: #fff;
         }
 
-        
-        .irule-analysis {
-            margin: 10px 0;
-            padding: 15px;
-            border-left: 3px solid #0077be;
-            background-color: #fff;
-        }
-        
-        .service-policy-template {
-            margin: 15px 0;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-        }
-        
-        .service-policy-template pre {
-            background-color: #fff;
-            padding: 10px;
-            border-radius: 4px;
-            overflow-x: auto;
-        }
-        
-        .mappable-features, .alternative-features, .unsupported-features, .warning-features {
-            margin: 10px 0;
-            padding: 10px;
-            border-radius: 4px;
-        }
-        
-        .compatible {
-            color: #28a745;
-        }
-        
-        .warning {
-            color: #ffc107;
-            font-weight: bold;
-        }
         .feature-section {
             margin: 10px 0;
             padding: 10px;
             border-radius: 4px;
         }
-        
-        .incompatible {
-            color: #dc3545;
-        }
-        
+
         .section-header {
             font-weight: bold;
-            margin-top: 10px;
-            padding: 5px 0;
+            margin: 10px 0 5px 0;
         }
-        
+
+        .mappable {
+            border-left: 3px solid #28a745;
+        }
+
+        .alternatives {
+            border-left: 3px solid #ffc107;
+        }
+
+        .unsupported {
+            border-left: 3px solid #dc3545;
+        }
+
+        .warnings {
+            border-left: 3px solid #fd7e14;
+        }
+
+        .feature-section ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+
+        .feature-section li {
+            margin: 3px 0;
+        }
+
+        .virtual-server {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background-color: #fff;
+        }
+
         h6 {
             color: #0077be;
             margin: 10px 0;
             font-size: 1.1em;
         }
-        
-        .pool-members {
-            margin: 10px 0;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-        }
-        
+
         .compatibility-section {
-            margin: 15px 0;
+            margin-top: 15px;
             padding: 15px;
             background-color: #f8f9fa;
             border-radius: 4px;
-            border-left: 3px solid #0077be;
         }
-.mappable {
-    border-left: 3px solid #28a745;
-}
-
-.alternatives {
-    border-left: 3px solid #ffc107;
-}
-
-.unsupported {
-    border-left: 3px solid #dc3545;
-}
-
-.warnings {
-    border-left: 3px solid #fd7e14;
-}
-
-.feature-section ul {
-    margin: 5px 0;
-    padding-left: 20px;
-}
-
-.feature-section li {
-    margin: 3px 0;
-}
-
-.virtual-server {
-    margin: 20px 0;
-    padding: 20px;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    background-color: #fff;
-}
-
-h6 {
-    color: #0077be;
-    margin: 10px 0;
-    font-size: 1.1em;
-}
-
-.compatibility-section {
-    margin-top: 15px;
-    padding: 15px;
-    background-color: #f8f9fa;
-    border-radius: 4px;
-}
-
-        
     </style>
 </head>
 <body>
@@ -246,163 +149,162 @@ h6 {
     <div id="results"></div>
 
     <script>
-document.getElementById('analyzeForm').onsubmit = function(e) {
-    e.preventDefault();
-    document.getElementById('results').innerHTML = 'Analyzing...';
-    fetch('/analyze', {
-        method: 'POST',
-        body: new FormData(this)
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.error) {
-            throw new Error(data.error);
-        }
-        document.getElementById('results').innerHTML = formatResults(data);
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        document.getElementById('results').innerHTML = `<p style="color: red;">An error occurred during analysis: ${error.message}</p>`;
-    });
-};
+        document.getElementById('analyzeForm').onsubmit = function(e) {
+            e.preventDefault();
+            document.getElementById('results').innerHTML = 'Analyzing...';
+            fetch('/analyze', {
+                method: 'POST',
+                body: new FormData(this)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                document.getElementById('results').innerHTML = formatResults(data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('results').innerHTML = `<p style="color: red;">An error occurred during analysis: ${error.message}</p>`;
+            });
+        };
 
-function formatResults(data) {
-    let output = '<h2>Analysis Results:</h2>';
-    
-    // Summary section
-    output += `<p>Virtual Servers: ${data.summary.virtual_servers}</p>`;
-    output += `<p>Pools: ${data.summary.pools}</p>`;
-    output += `<p>iRules: ${data.summary.irules}</p>`;
-    output += `<p>ASM Policies: ${data.summary.asm_policies}</p>`;
-    output += `<p>APM Policies: ${data.summary.apm_policies}</p>`;
+        function formatResults(data) {
+            let output = '<h2>Analysis Results:</h2>';
+            
+            // Summary section
+            output += `<p>Virtual Servers: ${data.summary.virtual_servers}</p>`;
+            output += `<p>Pools: ${data.summary.pools}</p>`;
+            output += `<p>iRules: ${data.summary.irules}</p>`;
+            output += `<p>ASM Policies: ${data.summary.asm_policies}</p>`;
+            output += `<p>APM Policies: ${data.summary.apm_policies}</p>`;
 
-    if (data.virtual_servers && data.virtual_servers.length > 0) {
-        output += '<h3>Virtual Servers Details:</h3>';
-        data.virtual_servers.forEach(vs => {
-            output += `<div class="virtual-server">`;
-            output += `<h4>${vs.name}</h4>`;
-            output += `<p>Destination: ${vs.destination}</p>`;
-            output += `<p>Pool: ${vs.pool}</p>`;
-            
-            // Pool Members
-            if (vs.pool_members && vs.pool_members.length > 0) {
-                output += '<p>Pool Members:</p><ul>';
-                vs.pool_members.forEach(member => {
-                    output += `<li>${member.name} (${member.address})</li>`;
-                });
-                output += '</ul>';
-            } else {
-                output += '<p>No pool members found.</p>';
-            }
-            
-            // iRules and their analysis
-            if (vs.irules && vs.irules.length > 0) {
-                output += '<div class="irules-section">';
-                output += '<h5>iRules:</h5>';
-                vs.irules.forEach(iruleName => {
-                    output += `<div class="irule-block">`;
-                    output += `<h6>* ${iruleName}</h6>`;
+            if (data.virtual_servers && data.virtual_servers.length > 0) {
+                output += '<h3>Virtual Servers Details:</h3>';
+                data.virtual_servers.forEach(vs => {
+                    output += `<div class="virtual-server">`;
+                    output += `<h4>${vs.name}</h4>`;
+                    output += `<p>Destination: ${vs.destination}</p>`;
+                    output += `<p>Pool: ${vs.pool}</p>`;
                     
-                    // Get analysis for this iRule
-                    const analysis = vs.irules_analysis[iruleName];
-                    if (analysis) {
-                        // Mappable Features
-                        if (analysis.mappable && analysis.mappable.length > 0) {
-                            output += '<div class="feature-section mappable">';
-                            output += '<p class="section-header">Mappable Features:</p>';
-                            output += '<ul>';
-                            analysis.mappable.forEach(feature => {
-                                output += `<li>${feature.feature} -> ${feature.service_policy}</li>`;
-                            });
-                            output += '</ul></div>';
-                        }
-                        
-                        // Alternatives Needed
-                        if (analysis.alternatives && analysis.alternatives.length > 0) {
-                            output += '<div class="feature-section alternatives">';
-                            output += '<p class="section-header">Alternatives Needed:</p>';
-                            output += '<ul>';
-                            analysis.alternatives.forEach(feature => {
-                                output += `<li>${feature.feature} -> ${feature.alternative}</li>`;
-                            });
-                            output += '</ul></div>';
-                        }
-                        
-                        // Unsupported Features
-                        if (analysis.unsupported && analysis.unsupported.length > 0) {
-                            output += '<div class="feature-section unsupported">';
-                            output += '<p class="section-header">Unsupported Features:</p>';
-                            output += '<ul>';
-                            analysis.unsupported.forEach(feature => {
-                                output += `<li>${feature.feature}: ${feature.note}</li>`;
-                            });
-                            output += '</ul></div>';
-                        }
-                        
-                        // Warnings
-                        if (analysis.warnings && analysis.warnings.length > 0) {
-                            output += '<div class="feature-section warnings">';
-                            output += '<p class="section-header">Warnings:</p>';
-                            output += '<ul>';
-                            analysis.warnings.forEach(warning => {
-                                output += `<li>${warning.feature}: ${warning.note}</li>`;
-                            });
-                            output += '</ul></div>';
-                        }
+                    // Pool Members
+                    if (vs.pool_members && vs.pool_members.length > 0) {
+                        output += '<p>Pool Members:</p><ul>';
+                        vs.pool_members.forEach(member => {
+                            output += `<li>${member.name} (${member.address})</li>`;
+                        });
+                        output += '</ul>';
                     } else {
-                        output += '<p>No analysis available for this iRule</p>';
+                        output += '<p>No pool members found.</p>';
                     }
-                    output += '</div>'; // end irule-block
+                    
+                    // iRules and their analysis
+                    if (vs.irules && vs.irules.length > 0) {
+                        output += '<div class="irules-section">';
+                        output += '<h5>iRules:</h5>';
+                        vs.irules.forEach(iruleName => {
+                            output += `<div class="irule-block">`;
+                            output += `<h6>* ${iruleName}</h6>`;
+                            
+                            // Get analysis for this iRule
+                            const analysis = vs.irules_analysis[iruleName];
+                            if (analysis) {
+                                // Mappable Features
+                                if (analysis.mappable && analysis.mappable.length > 0) {
+                                    output += '<div class="feature-section mappable">';
+                                    output += '<p class="section-header">Mappable Features:</p>';
+                                    output += '<ul>';
+                                    analysis.mappable.forEach(feature => {
+                                        output += `<li>${feature.feature} -> ${feature.service_policy}</li>`;
+                                    });
+                                    output += '</ul></div>';
+                                }
+                                
+                                // Alternatives Needed
+                                if (analysis.alternatives && analysis.alternatives.length > 0) {
+                                    output += '<div class="feature-section alternatives">';
+                                    output += '<p class="section-header">Alternatives Needed:</p>';
+                                    output += '<ul>';
+                                    analysis.alternatives.forEach(feature => {
+                                        output += `<li>${feature.feature} -> ${feature.alternative}</li>`;
+                                    });
+                                    output += '</ul></div>';
+                                }
+                                
+                                // Unsupported Features
+                                if (analysis.unsupported && analysis.unsupported.length > 0) {
+                                    output += '<div class="feature-section unsupported">';
+                                    output += '<p class="section-header">Unsupported Features:</p>';
+                                    output += '<ul>';
+                                    analysis.unsupported.forEach(feature => {
+                                        output += `<li>${feature.feature}: ${feature.note}</li>`;
+                                    });
+                                    output += '</ul></div>';
+                                }
+                                
+                                // Warnings
+                                if (analysis.warnings && analysis.warnings.length > 0) {
+                                    output += '<div class="feature-section warnings">';
+                                    output += '<p class="section-header">Warnings:</p>';
+                                    output += '<ul>';
+                                    analysis.warnings.forEach(warning => {
+                                        output += `<li>${warning.feature}: ${warning.note}</li>`;
+                                    });
+                                    output += '</ul></div>';
+                                }
+                            } else {
+                                output += '<p>No analysis available for this iRule</p>';
+                            }
+                            output += '</div>'; // end irule-block
+                        });
+                        output += '</div>'; // end irules-section
+                    } else {
+                        output += '<p>No iRules attached</p>';
+                    }
+                    
+                    // NGINX Compatibility
+                    if (vs.nginx_compatibility && vs.nginx_compatibility.length > 0) {
+                        output += '<div class="compatibility-section">';
+                        output += '<p class="section-header">NGINX Compatibility Issues:</p><ul>';
+                        vs.nginx_compatibility.forEach(item => {
+                            output += `<li>${item}</li>`;
+                        });
+                        output += '</ul></div>';
+                    }
+                    
+                    // F5 DC Compatibility
+                    if (vs.f5dc_compatibility) {
+                        output += '<div class="compatibility-section">';
+                        if (vs.f5dc_compatibility.incompatible && vs.f5dc_compatibility.incompatible.length > 0) {
+                            output += '<p class="section-header">F5 Distributed Cloud Incompatibilities:</p><ul>';
+                            vs.f5dc_compatibility.incompatible.forEach(item => {
+                                output += `<li>${item}</li>`;
+                            });
+                            output += '</ul>';
+                        }
+                        if (vs.f5dc_compatibility.warnings && vs.f5dc_compatibility.warnings.length > 0) {
+                            output += '<p class="section-header">F5 Distributed Cloud Warnings:</p><ul>';
+                            vs.f5dc_compatibility.warnings.forEach(item => {
+                                output += `<li>${item}</li>`;
+                            });
+                            output += '</ul>';
+                        }
+                        output += '</div>';
+                    }
+                    
+                    output += '</div>'; // end virtual-server
                 });
-                output += '</div>'; // end irules-section
             } else {
-                output += '<p>No iRules attached</p>';
+                output += '<p>No virtual servers found.</p>';
             }
-            
-            // NGINX Compatibility
-            if (vs.nginx_compatibility && vs.nginx_compatibility.length > 0) {
-                output += '<div class="compatibility-section">';
-                output += '<p class="section-header">NGINX Compatibility Issues:</p><ul>';
-                vs.nginx_compatibility.forEach(item => {
-                    output += `<li>${item}</li>`;
-                });
-                output += '</ul></div>';
-            }
-            
-            // F5 DC Compatibility
-            if (vs.f5dc_compatibility) {
-                output += '<div class="compatibility-section">';
-                if (vs.f5dc_compatibility.incompatible && vs.f5dc_compatibility.incompatible.length > 0) {
-                    output += '<p class="section-header">F5 Distributed Cloud Incompatibilities:</p><ul>';
-                    vs.f5dc_compatibility.incompatible.forEach(item => {
-                        output += `<li>${item}</li>`;
-                    });
-                    output += '</ul>';
-                }
-                if (vs.f5dc_compatibility.warnings && vs.f5dc_compatibility.warnings.length > 0) {
-                    output += '<p class="section-header">F5 Distributed Cloud Warnings:</p><ul>';
-                    vs.f5dc_compatibility.warnings.forEach(item => {
-                        output += `<li>${item}</li>`;
-                    });
-                    output += '</ul>';
-                }
-                output += '</div>';
-            }
-            
-            output += '</div>'; // end virtual-server
-        });
-    } else {
-        output += '<p>No virtual servers found.</p>';
-    }
 
-    return output;
-}
-console.log('Raw data:', JSON.stringify(data, null, 2));
+            return output;
+        }
     </script>
 </body>
 </html>
