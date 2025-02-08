@@ -73,29 +73,25 @@ class F5BIGIPAnalyzer:
         return self.parse_config(stdout.read().decode())
 
     def get_irules(self, ssh):
-        """Fetch iRules with their complete content"""
-        print("Getting iRules list...")
-        stdin, stdout, stderr = ssh.exec_command("tmsh -q list ltm rule")
-        base_output = stdout.read().decode()
-        print(f"Base iRule output received")
-        
-        irules = []
-        # First get list of iRule names
-        rule_names = []
-        for line in base_output.split('\n'):
-            if line.startswith('ltm rule '):
-                rule_name = line.split()[2]
-                rule_names.append(rule_name)
-                print(f"Found iRule: {rule_name}")
-
-        # Now get full content for each iRule
-        for rule_name in rule_names:
-            print(f"Getting content for iRule: {rule_name}")
-            stdin, stdout, stderr = ssh.exec_command(f"tmsh -q list ltm rule {rule_name} one-line")
+    """Fetch iRules with their complete content"""
+    print("Getting iRules list...")
+    # First get the list of iRules
+    stdin, stdout, stderr = ssh.exec_command("tmsh -q list ltm rule | grep ltm")
+    rules_output = stdout.read().decode()
+    
+    irules = []
+    for line in rules_output.split('\n'):
+        if line.startswith('ltm rule '):
+            rule_name = line.split()[2]
+            print(f"Found iRule: {rule_name}")
+            
+            # Get the complete iRule definition using list command
+            stdin, stdout, stderr = ssh.exec_command(f"tmsh -q list ltm rule {rule_name}")
             rule_content = stdout.read().decode()
-            print(f"Content length: {len(rule_content)}")
             
             if rule_content:
+                print(f"Retrieved content for {rule_name}, length: {len(rule_content)}")
+                print(f"Content preview: {rule_content[:200]}")  # Debug line to see content
                 irules.append({
                     'type': 'ltm rule',
                     'name': rule_name,
@@ -105,8 +101,8 @@ class F5BIGIPAnalyzer:
             else:
                 print(f"No content found for {rule_name}")
 
-        print(f"Total iRules processed: {len(irules)}")
-        return irules
+    print(f"Total iRules processed: {len(irules)}")
+    return irules
 
     def get_asm_policies(self, ssh):
         stdin, stdout, stderr = ssh.exec_command("tmsh -q list asm policy")
