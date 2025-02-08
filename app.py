@@ -74,41 +74,38 @@ class F5BIGIPAnalyzer:
 
     def get_irules(self, ssh):
         """Fetch iRules with their complete content"""
+        print("Getting iRules list...")
         stdin, stdout, stderr = ssh.exec_command("tmsh -q list ltm rule")
-        output = stdout.read().decode()
+        base_output = stdout.read().decode()
+        print(f"Base iRule output received")
         
         irules = []
-        current_rule = None
-        current_content = []
-        
-        for line in output.split('\n'):
+        # First get list of iRule names
+        rule_names = []
+        for line in base_output.split('\n'):
             if line.startswith('ltm rule '):
-                if current_rule:
-                    irules.append({
-                        'type': 'ltm rule',
-                        'name': current_rule,
-                        'config': '\n'.join(current_content)
-                    })
-                current_rule = line.split()[2]
-                current_content = [line]
-            elif current_rule:
-                current_content.append(line)
-        
-        # Add the last rule if exists
-        if current_rule:
-            irules.append({
-                'type': 'ltm rule',
-                'name': current_rule,
-                'config': '\n'.join(current_content)
-            })
-        
-        # For each iRule, get its actual content
-        for irule in irules:
-            stdin, stdout, stderr = ssh.exec_command(f"tmsh -q list ltm rule {irule['name']} {{ content }}")
-            definition = stdout.read().decode()
-            if definition:
-                irule['content'] = definition
+                rule_name = line.split()[2]
+                rule_names.append(rule_name)
+                print(f"Found iRule: {rule_name}")
 
+        # Now get full content for each iRule
+        for rule_name in rule_names:
+            print(f"Getting content for iRule: {rule_name}")
+            stdin, stdout, stderr = ssh.exec_command(f"tmsh -q list ltm rule {rule_name} one-line")
+            rule_content = stdout.read().decode()
+            print(f"Content length: {len(rule_content)}")
+            
+            if rule_content:
+                irules.append({
+                    'type': 'ltm rule',
+                    'name': rule_name,
+                    'config': rule_content,
+                    'content': rule_content
+                })
+            else:
+                print(f"No content found for {rule_name}")
+
+        print(f"Total iRules processed: {len(irules)}")
         return irules
 
     def get_asm_policies(self, ssh):
@@ -137,22 +134,22 @@ class F5BIGIPAnalyzer:
         """Analyze all iRules and their compatibility with service policies"""
         irule_analysis = {}
         print("\nStarting iRule analysis...")
+        print(f"Total iRules to analyze: {len(irules)}")
         
         for irule in irules:
             print(f"\nAnalyzing iRule: {irule['name']}")
             try:
-                # Try to extract the actual iRule content from the definition
-                if 'content' in irule:
-                    content = irule['content']
-                    print(f"Found direct content for {irule['name']}")
-                else:
-                    content_match = re.search(r'definition\s*{(.*?)}', irule['config'], re.DOTALL)
-                    content = content_match.group(1).strip() if content_match else ''
-                    print(f"Extracted content from config for {irule['name']}")
+                print(f"iRule content type: {type(irule.get('content'))}")
+                print(f"iRule config type: {type(irule.get('config'))}")
+                
+                # Try to extract the actual iRule content
+                content = irule.get('content', '')
+                if not content:
+                    content = irule.get('config', '')
                 
                 print(f"Content length: {len(content) if content else 0} characters")
                 if content:
-                    print("First 100 characters of content:", content[:100])
+                    print("First 200 characters of content:", content[:200])
                     analysis = analyze_irule(content)
                     print(f"Analysis complete for {irule['name']}")
                     print("Found features:", {
