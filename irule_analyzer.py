@@ -2,7 +2,7 @@ import re
 
 def analyze_irule(irule_content):
     """
-    Enhanced iRule analyzer with XC migration recommendations and original functionality
+    Enhanced iRule analyzer with XC migration recommendations
     """
     analysis = {
         "mappable": [],        # Can be directly mapped to XC features
@@ -128,6 +128,22 @@ def check_common_patterns(content, analysis):
             "notes": "Configure proper timeouts and HTTP version"
         })
 
+def check_client_accepted_capabilities(content, analysis):
+    """Analyze CLIENT_ACCEPTED event content"""
+    if re.search(r'IP::client_addr', content):
+        analysis["mappable"].append({
+            "feature": "Client IP Tracking",
+            "service_policy": "Available in XC service policies and logging",
+            "notes": "Client IP information is automatically tracked in XC"
+        })
+    
+    if re.search(r'TCP::', content):
+        analysis["alternatives"].append({
+            "feature": "TCP Level Controls",
+            "alternative": "Load Balancer TCP/UDP settings",
+            "notes": "Configure TCP settings in Load Balancer configuration"
+        })
+
 def check_rule_init_capabilities(content, analysis):
     """Enhanced RULE_INIT analysis"""
     # Original functionality
@@ -224,6 +240,15 @@ def check_http_response_capabilities(content, analysis):
             "notes": "Configure security headers in LB settings"
         })
 
+def check_http_response_data_capabilities(content, analysis):
+    """Analyze HTTP_RESPONSE_DATA event content"""
+    if re.search(r'HTTP::collect|HTTP::payload', content):
+        analysis["unsupported"].append({
+            "feature": "Response data manipulation",
+            "note": "Response payload modification not supported in XC",
+            "alternative": "Consider NGINX service chaining if needed"
+        })
+
 def check_clientssl_handshake_capabilities(content, analysis):
     """Enhanced SSL/TLS analysis"""
     # SSL/TLS Info
@@ -240,6 +265,15 @@ def check_clientssl_handshake_capabilities(content, analysis):
             "feature": "SSL Session Persistence",
             "alternative": "Load Balancer persistence settings",
             "notes": "Configure appropriate persistence method"
+        })
+
+def check_clientssl_clientcert_capabilities(content, analysis):
+    """Analyze client certificate handling"""
+    if re.search(r'SSL::cert|X509::', content):
+        analysis["mappable"].append({
+            "feature": "Client Certificate Processing",
+            "service_policy": "mTLS configuration and header injection",
+            "notes": "XC supports mTLS and can extract X.509 attributes to headers"
         })
 
 def check_lb_selected_capabilities(content, analysis):
@@ -259,6 +293,24 @@ def check_lb_selected_capabilities(content, analysis):
             "alternative": "Origin Pool load balancing settings",
             "notes": "Configure in origin pool settings"
         })
+
+def check_lb_failed_capabilities(content, analysis):
+    """Analyze LB_FAILED event content"""
+    if re.search(r'HTTP::respond', content):
+        analysis["mappable"].append({
+            "feature": "Custom error handling",
+            "service_policy": "Custom Error Response in Load Balancer",
+            "notes": "Configure custom error pages for failed requests"
+        })
+
+def extract_event_content(irule_content, event):
+    """Extract event content with enhanced pattern matching"""
+    pattern = rf'when\s+{event}\s*{{(.*?)}}'
+    matches = re.finditer(pattern, irule_content, re.DOTALL)
+    contents = []
+    for match in matches:
+        contents.append(match.group(1).strip())
+    return '\n'.join(contents) if contents else None
 
 def generate_service_policy_template(analysis):
     """Enhanced service policy template generation"""
@@ -325,16 +377,7 @@ def generate_service_policy_template(analysis):
     
     return template
 
-def extract_event_content(irule_content, event):
-    """Extract event content with enhanced pattern matching"""
-    pattern = rf'when\s+{event}\s*{{(.*?)}}'
-    matches = re.finditer(pattern, irule_content, re.DOTALL)
-    contents = []
-    for match in matches:
-        contents.append(match.group(1).strip())
-    return '\n'.join(contents) if contents else None
-
-# Example/test code
+# Example usage
 if __name__ == "__main__":
     test_irule = """
     when RULE_INIT {
