@@ -8,9 +8,6 @@ from nginx_compatibility import check_nginx_compatibility
 from f5dc_compatibility import check_f5dc_compatibility
 from irule_analyzer import analyze_irule, generate_service_policy_template
 
-# Suppress cryptography deprecation warnings
-warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
-
 app = Flask(__name__)
 
 class F5BIGIPAnalyzer:
