@@ -3,39 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>F5 BIG-IP Analyzer</title>
+    <title>F5 BIG-IP to XC Migration Analyzer</title>
     <style>
+        /* Base styles */
         body {
             font-family: Arial, sans-serif;
             line-height: 1.6;
             color: #333;
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
             background-color: #f4f4f4;
         }
+        
         h1 {
             color: #0077be;
             text-align: center;
         }
+
+        h2 {
+            color: #444;
+            margin-top: 20px;
+        }
+
+        h3, h4, h5 {
+            color: #555;
+            margin-top: 15px;
+        }
+
+        /* Form styles */
         form {
             background-color: #fff;
             padding: 20px;
             border-radius: 5px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
         }
+
         label {
             display: block;
             margin-bottom: 5px;
             font-weight: bold;
         }
-        input[type="text"], input[type="number"], input[type="password"] {
+
+        input[type="text"], 
+        input[type="number"], 
+        input[type="password"] {
             width: 100%;
             padding: 8px;
             margin-bottom: 15px;
             border: 1px solid #ddd;
             border-radius: 4px;
+            box-sizing: border-box;
         }
+
         input[type="submit"] {
             background-color: #0077be;
             color: white;
@@ -43,20 +64,33 @@
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            width: 100%;
+            font-size: 16px;
         }
+
         input[type="submit"]:hover {
             background-color: #005fa3;
         }
+
+        /* Results section */
         #results {
             margin-top: 20px;
             background-color: #fff;
             padding: 20px;
             border-radius: 5px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            white-space: pre-wrap;
         }
 
-        /* iRule Analysis Styles */
+        /* Virtual server section */
+        .virtual-server {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background-color: #fff;
+        }
+
+        /* iRules section */
         .irules-section {
             margin: 15px 0;
             padding: 15px;
@@ -71,63 +105,59 @@
             background-color: #fff;
         }
 
+        /* Feature sections */
         .feature-section {
             margin: 10px 0;
             padding: 10px;
             border-radius: 4px;
         }
 
-        .section-header {
-            font-weight: bold;
-            margin: 10px 0 5px 0;
-        }
-
         .mappable {
             border-left: 3px solid #28a745;
+            background-color: #f8fff8;
         }
 
         .alternatives {
             border-left: 3px solid #ffc107;
+            background-color: #fffff8;
         }
 
         .unsupported {
             border-left: 3px solid #dc3545;
+            background-color: #fff8f8;
         }
 
         .warnings {
             border-left: 3px solid #fd7e14;
+            background-color: #fff9f2;
         }
 
+        .recommendations {
+            border-left: 3px solid #17a2b8;
+            background-color: #f2f9ff;
+        }
+
+        /* Headers */
+        .section-header {
+            font-weight: bold;
+            margin: 10px 0 5px 0;
+            padding: 5px 0;
+        }
+
+        /* Lists */
         .feature-section ul {
             margin: 5px 0;
             padding-left: 20px;
+            list-style-type: none;
         }
 
         .feature-section li {
             margin: 3px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
         }
 
-        .virtual-server {
-            margin: 20px 0;
-            padding: 20px;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            background-color: #fff;
-        }
-
-        h6 {
-            color: #0077be;
-            margin: 10px 0;
-            font-size: 1.1em;
-        }
-
-        .compatibility-section {
-            margin-top: 15px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-        }
-
+        /* Status indicators */
         .compatible {
             color: #28a745;
         }
@@ -138,11 +168,96 @@
 
         .warning {
             color: #ffc107;
+            font-weight: bold;
+        }
+
+        /* Compatibility section */
+        .compatibility-section {
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border-left: 3px solid #0077be;
+        }
+
+        /* Code blocks */
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border: 1px solid #dee2e6;
+        }
+
+        code {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+        }
+
+        /* Loading indicator */
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }
+
+        /* Error messages */
+        .error {
+            color: #dc3545;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #dc3545;
+            border-radius: 4px;
+            background-color: #fff8f8;
+        }
+
+        /* Success messages */
+        .success {
+            color: #28a745;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #28a745;
+            border-radius: 4px;
+            background-color: #f8fff8;
+        }
+
+        /* Additional enhancements */
+        .detail-box {
+            background-color: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+
+        .http-settings {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 3px solid #17a2b8;
+        }
+
+        .ssl-profiles {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 3px solid #6f42c1;
+        }
+
+        .persistence-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 3px solid #e83e8c;
         }
     </style>
 </head>
 <body>
-    <h1>F5 BIG-IP Analyzer</h1>
+    <h1>F5 BIG-IP to XC Migration Analyzer</h1>
     <form id="analyzeForm">
         <label for="hostname">Hostname:</label>
         <input type="text" id="hostname" name="hostname" required>
@@ -163,7 +278,9 @@
     <script>
         document.getElementById('analyzeForm').onsubmit = function(e) {
             e.preventDefault();
-            document.getElementById('results').innerHTML = 'Analyzing...';
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="loading">Analyzing configuration... Please wait...</div>';
+            
             fetch('/analyze', {
                 method: 'POST',
                 body: new FormData(this)
@@ -178,11 +295,11 @@
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                document.getElementById('results').innerHTML = formatResults(data);
+                resultsDiv.innerHTML = formatResults(data);
             })
             .catch(error => {
                 console.error('Error:', error);
-                document.getElementById('results').innerHTML = `<p style="color: red;">An error occurred during analysis: ${error.message}</p>`;
+                resultsDiv.innerHTML = `<div class="error">An error occurred during analysis: ${error.message}</div>`;
             });
         };
 
@@ -190,11 +307,21 @@
             let output = '<h2>Analysis Results:</h2>';
             
             // Summary section
+            output += '<div class="detail-box">';
             output += `<p>Virtual Servers: ${data.summary.virtual_servers}</p>`;
             output += `<p>Pools: ${data.summary.pools}</p>`;
             output += `<p>iRules: ${data.summary.irules}</p>`;
             output += `<p>ASM Policies: ${data.summary.asm_policies}</p>`;
             output += `<p>APM Policies: ${data.summary.apm_policies}</p>`;
+            output += '</div>';
+
+            // HTTP Settings if available
+            if (data.http_settings) {
+                output += '<div class="http-settings">';
+                output += '<h3>HTTP Profile Settings:</h3>';
+                output += `<pre><code>${data.http_settings}</code></pre>`;
+                output += '</div>';
+            }
 
             if (data.virtual_servers && data.virtual_servers.length > 0) {
                 output += '<h3>Virtual Servers Details:</h3>';
@@ -206,13 +333,32 @@
                     
                     // Pool Members
                     if (vs.pool_members && vs.pool_members.length > 0) {
+                        output += '<div class="detail-box">';
                         output += '<p>Pool Members:</p><ul>';
                         vs.pool_members.forEach(member => {
                             output += `<li>${member.name} (${member.address})</li>`;
                         });
-                        output += '</ul>';
+                        output += '</ul></div>';
                     } else {
                         output += '<p>No pool members found.</p>';
+                    }
+                    
+                    // SSL Profiles
+                    if (vs.ssl_profiles && vs.ssl_profiles.length > 0) {
+                        output += '<div class="ssl-profiles">';
+                        output += '<h5>SSL Profiles:</h5><ul>';
+                        vs.ssl_profiles.forEach(profile => {
+                            output += `<li>${profile.name} (${profile.type})</li>`;
+                        });
+                        output += '</ul></div>';
+                    }
+
+                    // Persistence Information
+                    if (vs.persistence) {
+                        output += '<div class="persistence-info">';
+                        output += '<h5>Persistence:</h5>';
+                        output += `<p>${vs.persistence}</p>`;
+                        output += '</div>';
                     }
                     
                     // iRules section
@@ -232,7 +378,11 @@
                                     output += '<p class="section-header">Mappable Features:</p>';
                                     output += '<ul>';
                                     analysis.mappable.forEach(feature => {
-                                        output += `<li>${feature.feature} -> ${feature.service_policy}</li>`;
+                                        output += `<li>${feature.feature} -> ${feature.service_policy}`;
+                                        if (feature.notes) {
+                                            output += `<br><small>${feature.notes}</small>`;
+                                        }
+                                        output += '</li>';
                                     });
                                     output += '</ul></div>';
                                 }
@@ -243,7 +393,11 @@
                                     output += '<p class="section-header">Alternatives Needed:</p>';
                                     output += '<ul>';
                                     analysis.alternatives.forEach(feature => {
-                                        output += `<li>${feature.feature} -> ${feature.alternative}</li>`;
+                                        output += `<li>${feature.feature} -> ${feature.alternative}`;
+                                        if (feature.notes) {
+                                            output += `<br><small>${feature.notes}</small>`;
+                                        }
+                                        output += '</li>';
                                     });
                                     output += '</ul></div>';
                                 }
@@ -265,67 +419,78 @@
                                     output += '<p class="section-header">Warnings:</p>';
                                     output += '<ul>';
                                     analysis.warnings.forEach(warning => {
-                                        output += `<li>${warning.feature}: ${warning.note}</li>`;
+                                        output += `<li>${warning.feature || warning}: ${warning.note || ''}</li>`;
                                     });
                                     output += '</ul></div>';
                                 }
-                            } else {
-                                output += '<p>No analysis available for this iRule</p>';
-                            }
-                            output += '</div>'; // end irule-block
-                        });
-                        output += '</div>'; // end irules-section
-                    } else {
-                        output += '<p>No iRules attached</p>';
-                    }
-                    
-                    // NGINX Compatibility
-                    output += '<div class="compatibility-section">';
-                    if (vs.nginx_compatibility && vs.nginx_compatibility.length > 0) {
-                        output += '<p class="section-header">NGINX Compatibility Issues:</p><ul>';
-                        vs.nginx_compatibility.forEach(item => {
-                            output += `<li>${item}</li>`;
-                        });
-                        output += '</ul>';
-                    } else {
-                        output += '<p class="section-header compatible">Fully compatible with NGINX</p>';
-                    }
-                    output += '</div>';
-
-                    // F5 DC Compatibility
-                    output += '<div class="compatibility-section">';
-                    if (vs.f5dc_compatibility) {
-                        if (vs.f5dc_compatibility.incompatible && vs.f5dc_compatibility.incompatible.length > 0) {
-                            output += '<p class="section-header">F5 Distributed Cloud Incompatibilities:</p><ul>';
-                            vs.f5dc_compatibility.incompatible.forEach(item => {
-                                output += `<li>${item}</li>`;
-                            });
-                            output += '</ul>';
-                        }
-                        if (vs.f5dc_compatibility.warnings && vs.f5dc_compatibility.warnings.length > 0) {
-                            output += '<p class="section-header">F5 Distributed Cloud Warnings:</p><ul>';
-                            vs.f5dc_compatibility.warnings.forEach(item => {
-                                output += `<li>${item}</li>`;
-                            });
-                            output += '</ul>';
-                        }
-                        if ((!vs.f5dc_compatibility.incompatible || vs.f5dc_compatibility.incompatible.length === 0) && 
-                            (!vs.f5dc_compatibility.warnings || vs.f5dc_compatibility.warnings.length === 0)) {
-                            output += '<p class="section-header compatible">Fully compatible with F5 Distributed Cloud</p>';
-                        }
-                    } else {
-                        output += '<p class="section-header compatible">Fully compatible with F5 Distributed Cloud</p>';
-                    }
-                    output += '</div>';
-                    
-                    output += '</div>'; // end virtual-server
-                });
-            } else {
-                output += '<p>No virtual servers found.</p>';
-            }
-
-            return output;
-        }
-    </script>
-</body>
-</html>
+                                // Recommendations
+                                                                if (analysis.recommendations && analysis.recommendations.length > 0) {
+                                                                    output += '<div class="feature-section recommendations">';
+                                                                    output += '<p class="section-header">XC Migration Recommendations:</p>';
+                                                                    output += '<ul>';
+                                                                    analysis.recommendations.forEach(rec => {
+                                                                        output += `<li>${rec}</li>`;
+                                                                    });
+                                                                    output += '</ul></div>';
+                                                                }
+                                                            } else {
+                                                                output += '<p>No analysis available for this iRule</p>';
+                                                            }
+                                                            output += '</div>'; // end irule-block
+                                                        });
+                                                        output += '</div>'; // end irules-section
+                                                    } else {
+                                                        output += '<p>No iRules attached</p>';
+                                                    }
+                                                    
+                                                    // NGINX Compatibility
+                                                    output += '<div class="compatibility-section">';
+                                                    if (vs.nginx_compatibility && vs.nginx_compatibility.length > 0) {
+                                                        output += '<p class="section-header">NGINX Compatibility Issues:</p><ul>';
+                                                        vs.nginx_compatibility.forEach(item => {
+                                                            output += `<li>${item}</li>`;
+                                                        });
+                                                        output += '</ul>';
+                                                    } else {
+                                                        output += '<p class="section-header compatible">Fully compatible with NGINX</p>';
+                                                    }
+                                                    output += '</div>';
+                                
+                                                    // F5 DC Compatibility
+                                                    output += '<div class="compatibility-section">';
+                                                    if (vs.f5dc_compatibility) {
+                                                        if (vs.f5dc_compatibility.incompatible && vs.f5dc_compatibility.incompatible.length > 0) {
+                                                            output += '<p class="section-header">F5 Distributed Cloud Incompatibilities:</p><ul>';
+                                                            vs.f5dc_compatibility.incompatible.forEach(item => {
+                                                                output += `<li>${item}</li>`;
+                                                            });
+                                                            output += '</ul>';
+                                                        }
+                                                        if (vs.f5dc_compatibility.warnings && vs.f5dc_compatibility.warnings.length > 0) {
+                                                            output += '<p class="section-header">F5 Distributed Cloud Warnings:</p><ul>';
+                                                            vs.f5dc_compatibility.warnings.forEach(item => {
+                                                                output += `<li>${item}</li>`;
+                                                            });
+                                                            output += '</ul>';
+                                                        }
+                                                        if ((!vs.f5dc_compatibility.incompatible || vs.f5dc_compatibility.incompatible.length === 0) && 
+                                                            (!vs.f5dc_compatibility.warnings || vs.f5dc_compatibility.warnings.length === 0)) {
+                                                            output += '<p class="section-header compatible">Fully compatible with F5 Distributed Cloud</p>';
+                                                        }
+                                                    } else {
+                                                        output += '<p class="section-header compatible">Fully compatible with F5 Distributed Cloud</p>';
+                                                    }
+                                                    output += '</div>';
+                                                    
+                                                    output += '</div>'; // end virtual-server
+                                                });
+                                            } else {
+                                                output += '<p>No virtual servers found.</p>';
+                                            }
+                                
+                                            return output;
+                                        }
+                                    </script>
+                                </body>
+                                </html>
+                                                                
