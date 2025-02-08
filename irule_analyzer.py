@@ -12,6 +12,9 @@ def analyze_irule(irule_content):
         "warnings": []         # Additional considerations
     }
     
+    print(f"Starting iRule content analysis...")
+    print(f"Content snippet: {irule_content[:100]}")
+    
     # Common iRule events and their service policy equivalents
     events = {
         'HTTP_REQUEST': check_http_request_capabilities,
@@ -23,10 +26,16 @@ def analyze_irule(irule_content):
     
     # Extract and analyze each event
     for event, checker in events.items():
+        print(f"Checking for {event} event...")
         if re.search(rf'when\s+{event}\s*{{', irule_content, re.IGNORECASE):
+            print(f"Found {event} event")
             event_content = extract_event_content(irule_content, event)
             if event_content:
+                print(f"Analyzing {event} content...")
                 checker(event_content, analysis)
+                print(f"Completed {event} analysis")
+            else:
+                print(f"No content found for {event}")
     
     return analysis
 
@@ -196,6 +205,59 @@ def generate_service_policy_template(analysis):
                     }
                 }
             })
-        # Add more rule templates based on other mappable features
+        elif "HTTP Method Matcher" in feature["service_policy"]:
+            template["spec"]["rules"].append({
+                "name": "method-matching-rule",
+                "match": {
+                    "http_method": ["GET", "POST"]  # Example methods
+                }
+            })
+        elif "Request Headers" in feature["service_policy"]:
+            template["spec"]["rules"].append({
+                "name": "header-manipulation-rule",
+                "request_headers": {
+                    "add": {
+                        "name": "X-Example-Header",
+                        "value": "example-value"
+                    }
+                }
+            })
+        elif "IP Prefix List" in feature["service_policy"]:
+            template["spec"]["rules"].append({
+                "name": "ip-matching-rule",
+                "match": {
+                    "ip_prefix_list": ["0.0.0.0/0"]  # Example IP prefix
+                }
+            })
+        elif "redirect" in feature["service_policy"].lower():
+            template["spec"]["rules"].append({
+                "name": "redirect-rule",
+                "action": "REDIRECT",
+                "redirect": {
+                    "protocol": "HTTPS",
+                    "port": 443
+                }
+            })
     
     return template
+
+# Example usage for testing
+if __name__ == "__main__":
+    test_irule = """
+    when HTTP_REQUEST {
+        if { [HTTP::uri] starts_with "/api" } {
+            HTTP::header insert "X-API-Version" "1.0"
+            pool api_pool
+        }
+    }
+    when HTTP_RESPONSE {
+        HTTP::header remove "Server"
+    }
+    """
+    
+    result = analyze_irule(test_irule)
+    print("\nAnalysis Result:")
+    print("Mappable features:", len(result["mappable"]))
+    print("Alternatives needed:", len(result["alternatives"]))
+    print("Unsupported features:", len(result["unsupported"]))
+    print("Warnings:", len(result["warnings"]))
