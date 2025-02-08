@@ -3,9 +3,13 @@ import paramiko
 import re
 import socket
 import traceback
+import warnings
 from nginx_compatibility import check_nginx_compatibility
 from f5dc_compatibility import check_f5dc_compatibility
 from irule_analyzer import analyze_irule, generate_service_policy_template
+
+# Suppress cryptography deprecation warnings
+warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 
 app = Flask(__name__)
 
@@ -45,8 +49,20 @@ class F5BIGIPAnalyzer:
             apm_policies = self.get_apm_policies(ssh)
             print(f"Found {len(apm_policies)} APM policies")
 
+            print("Checking HTTP profile settings...")
+            http_settings = self.get_http_settings(ssh)
+            print("HTTP settings retrieved")
+
             print("Generating report...")
-            report = self.generate_report(virtual_servers, pools, irules, irule_analysis, asm_policies, apm_policies)
+            report = self.generate_report(
+                virtual_servers, 
+                pools, 
+                irules, 
+                irule_analysis, 
+                asm_policies, 
+                apm_policies,
+                http_settings
+            )
 
             ssh.close()
             print("Analysis completed successfully")
@@ -62,57 +78,81 @@ class F5BIGIPAnalyzer:
             raise
         except Exception as e:
             print(f"An unexpected error occurred during analysis: {str(e)}")
+            print(traceback.format_exc())
             raise
 
     def get_virtual_servers(self, ssh):
+        """Fetch all virtual servers with their complete configuration"""
         stdin, stdout, stderr = ssh.exec_command("tmsh -q list ltm virtual all-properties")
         return self.parse_config(stdout.read().decode())
 
     def get_pools(self, ssh):
+        """Fetch all pools with their complete configuration"""
         stdin, stdout, stderr = ssh.exec_command("tmsh -q list ltm pool all-properties")
         return self.parse_config(stdout.read().decode())
 
     def get_irules(self, ssh):
         """Fetch iRules with their complete content"""
         print("Getting iRules list...")
-        # First get the list of iRules
-        stdin, stdout, stderr = ssh.exec_command("tmsh -q list ltm rule | grep ltm")
-        rules_output = stdout.read().decode()
+        stdin, stdout, stderr = ssh.exec_command("tmsh -q list ltm rule")
+        base_output = stdout.read().decode()
+        print(f"Base iRule output received")
         
         irules = []
-        for line in rules_output.split('\n'):
+        # First get list of iRule names
+        rule_names = []
+        for line in base_output.split('\n'):
             if line.startswith('ltm rule '):
                 rule_name = line.split()[2]
+                rule_names.append(rule_name)
                 print(f"Found iRule: {rule_name}")
-                
-                # Get the complete iRule definition using list command
-                stdin, stdout, stderr = ssh.exec_command(f"tmsh -q list ltm rule {rule_name}")
-                rule_content = stdout.read().decode()
-                
-                if rule_content:
-                    print(f"Retrieved content for {rule_name}, length: {len(rule_content)}")
-                    print(f"Content preview: {rule_content[:200]}")  # Debug line to see content
-                    irules.append({
-                        'type': 'ltm rule',
-                        'name': rule_name,
-                        'config': rule_content,
-                        'content': rule_content
-                    })
+
+        # Now get full content for each iRule
+        for rule_name in rule_names:
+            print(f"Getting content for iRule: {rule_name}")
+            stdin, stdout, stderr = ssh.exec_command(f"tmsh -q list ltm rule {rule_name}")
+            rule_content = stdout.read().decode()
+            print(f"Content length: {len(rule_content)}")
+            
+            if rule_content:
+                # Extract the actual iRule definition
+                definition_match = re.search(r'definition\s*{([^}]+)}', rule_content, re.DOTALL)
+                if definition_match:
+                    irule_def = definition_match.group(1).strip()
+                    print(f"Extracted iRule definition for {rule_name}")
                 else:
-                    print(f"No content found for {rule_name}")
-    
+                    irule_def = ""
+                    print(f"No definition found for {rule_name}")
+
+                irules.append({
+                    'type': 'ltm rule',
+                    'name': rule_name,
+                    'config': rule_content,
+                    'content': irule_def
+                })
+            else:
+                print(f"No content found for {rule_name}")
+
         print(f"Total iRules processed: {len(irules)}")
         return irules
 
     def get_asm_policies(self, ssh):
+        """Fetch ASM policies"""
         stdin, stdout, stderr = ssh.exec_command("tmsh -q list asm policy")
         return self.parse_config(stdout.read().decode())
 
     def get_apm_policies(self, ssh):
+        """Fetch APM policies"""
         stdin, stdout, stderr = ssh.exec_command("tmsh -q list apm policy")
         return self.parse_config(stdout.read().decode())
 
+    def get_http_settings(self, ssh):
+        """Fetch HTTP profile settings"""
+        stdin, stdout, stderr = ssh.exec_command("tmsh -q show /ltm profile http global")
+        return stdout.read().decode()
+
     def parse_config(self, config_str):
+        """Parse BIG-IP configuration into structured format"""
         configs = re.split(r'\n(?=ltm |asm |apm )', config_str)
         parsed_configs = []
         for config in configs:
@@ -136,11 +176,11 @@ class F5BIGIPAnalyzer:
             print(f"\nAnalyzing iRule: {irule['name']}")
             try:
                 print(f"iRule content type: {type(irule.get('content'))}")
-                print(f"iRule config type: {type(irule.get('config'))}")
                 
-                # Try to extract the actual iRule content
+                # Get the iRule content
                 content = irule.get('content', '')
                 if not content:
+                    print(f"No direct content, extracting from config")
                     content = irule.get('config', '')
                 
                 print(f"Content length: {len(content) if content else 0} characters")
@@ -152,7 +192,8 @@ class F5BIGIPAnalyzer:
                         "mappable": len(analysis["mappable"]),
                         "alternatives": len(analysis["alternatives"]),
                         "unsupported": len(analysis["unsupported"]),
-                        "warnings": len(analysis["warnings"])
+                        "warnings": len(analysis["warnings"]),
+                        "recommendations": len(analysis.get("recommendations", []))
                     })
                     
                     if analysis["mappable"]:
@@ -164,7 +205,8 @@ class F5BIGIPAnalyzer:
                         "mappable": [],
                         "alternatives": [],
                         "unsupported": [],
-                        "warnings": ["Unable to retrieve iRule content"]
+                        "warnings": ["Unable to retrieve iRule content"],
+                        "recommendations": []
                     }
             except Exception as e:
                 print(f"Error analyzing iRule {irule['name']}: {str(e)}")
@@ -173,7 +215,8 @@ class F5BIGIPAnalyzer:
                     "mappable": [],
                     "alternatives": [],
                     "unsupported": [],
-                    "warnings": [f"Error analyzing iRule: {str(e)}"]
+                    "warnings": [f"Error analyzing iRule: {str(e)}"],
+                    "recommendations": []
                 }
         
         return irule_analysis
@@ -185,7 +228,8 @@ class F5BIGIPAnalyzer:
             return [rule.strip() for rule in rules_match.group(1).split()]
         return []
 
-    def generate_report(self, virtual_servers, pools, irules, irule_analysis, asm_policies, apm_policies):
+    def generate_report(self, virtual_servers, pools, irules, irule_analysis, asm_policies, apm_policies, http_settings):
+        """Generate comprehensive analysis report"""
         report = {
             "summary": {
                 "virtual_servers": len(virtual_servers),
@@ -195,7 +239,8 @@ class F5BIGIPAnalyzer:
                 "apm_policies": len(apm_policies)
             },
             "virtual_servers": [],
-            "irules_analysis": irule_analysis  # Add complete iRule analysis to report
+            "irules_analysis": irule_analysis,
+            "http_settings": http_settings
         }
 
         for vs in virtual_servers:
@@ -207,26 +252,40 @@ class F5BIGIPAnalyzer:
                 "pool": self.extract_pool(vs['config']),
                 "pool_members": self.get_pool_members(vs['config'], pools),
                 "irules": associated_irules,
-                "irules_analysis": {  # Add analysis for associated iRules
+                "irules_analysis": {
                     irule: irule_analysis.get(irule, {})
                     for irule in associated_irules
                 },
                 "nginx_compatibility": check_nginx_compatibility(vs['config']),
                 "f5dc_compatibility": check_f5dc_compatibility(vs['config'])
             }
+            
+            # Add SSL profile analysis if present
+            ssl_profiles = self.extract_ssl_profiles(vs['config'])
+            if ssl_profiles:
+                vs_report["ssl_profiles"] = ssl_profiles
+
+            # Add persistence analysis if present
+            persistence = self.extract_persistence(vs['config'])
+            if persistence:
+                vs_report["persistence"] = persistence
+
             report["virtual_servers"].append(vs_report)
 
         return report
 
     def extract_destination(self, config):
+        """Extract destination information from virtual server config"""
         dest_match = re.search(r'destination\s+(\S+)', config)
         return dest_match.group(1) if dest_match else "Not specified"
 
     def extract_pool(self, config):
+        """Extract pool information from virtual server config"""
         pool_match = re.search(r'\n\s*pool\s+(\S+)', config)
         return pool_match.group(1) if pool_match else "None"
 
     def get_pool_members(self, vs_config, pools):
+        """Get pool members for a virtual server"""
         pool_name = self.extract_pool(vs_config)
         if pool_name == "None":
             return []
@@ -235,6 +294,29 @@ class F5BIGIPAnalyzer:
             return []
         members = re.findall(r'(\S+):\S+\s*{\s*address\s+(\S+)', pool_config['config'])
         return [{"name": m[0], "address": m[1]} for m in members]
+
+    def extract_ssl_profiles(self, config):
+        """Extract SSL profile information from virtual server config"""
+        ssl_profiles = []
+        profiles_match = re.search(r'profiles\s*{([^}]+)}', config)
+        if profiles_match:
+            profile_content = profiles_match.group(1)
+            clientssl_matches = re.finditer(r'(\S+)\s*{\s*context\s+clientside', profile_content)
+            serverssl_matches = re.finditer(r'(\S+)\s*{\s*context\s+serverside', profile_content)
+            
+            ssl_profiles.extend([{"name": m.group(1), "type": "clientssl"} for m in clientssl_matches])
+            ssl_profiles.extend([{"name": m.group(1), "type": "serverssl"} for m in serverssl_matches])
+        
+        return ssl_profiles if ssl_profiles else None
+
+    def extract_persistence(self, config):
+        """Extract persistence information from virtual server config"""
+        persist_match = re.search(r'persist\s*{([^}]+)}', config)
+        if persist_match:
+            persist_content = persist_match.group(1)
+            persist_type = re.search(r'(\S+)\s*{', persist_content)
+            return persist_type.group(1) if persist_type else None
+        return None
 
 analyzer = F5BIGIPAnalyzer()
 
