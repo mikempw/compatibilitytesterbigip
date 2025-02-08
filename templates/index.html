@@ -127,6 +127,18 @@
             background-color: #f8f9fa;
             border-radius: 4px;
         }
+
+        .compatible {
+            color: #28a745;
+        }
+
+        .incompatible {
+            color: #dc3545;
+        }
+
+        .warning {
+            color: #ffc107;
+        }
     </style>
 </head>
 <body>
@@ -203,7 +215,7 @@
                         output += '<p>No pool members found.</p>';
                     }
                     
-                    // iRules and their analysis
+                    // iRules section
                     if (vs.irules && vs.irules.length > 0) {
                         output += '<div class="irules-section">';
                         output += '<h5>iRules:</h5>';
@@ -268,18 +280,21 @@
                     }
                     
                     // NGINX Compatibility
+                    output += '<div class="compatibility-section">';
                     if (vs.nginx_compatibility && vs.nginx_compatibility.length > 0) {
-                        output += '<div class="compatibility-section">';
                         output += '<p class="section-header">NGINX Compatibility Issues:</p><ul>';
                         vs.nginx_compatibility.forEach(item => {
                             output += `<li>${item}</li>`;
                         });
-                        output += '</ul></div>';
+                        output += '</ul>';
+                    } else {
+                        output += '<p class="section-header compatible">Fully compatible with NGINX</p>';
                     }
-                    
+                    output += '</div>';
+
                     // F5 DC Compatibility
+                    output += '<div class="compatibility-section">';
                     if (vs.f5dc_compatibility) {
-                        output += '<div class="compatibility-section">';
                         if (vs.f5dc_compatibility.incompatible && vs.f5dc_compatibility.incompatible.length > 0) {
                             output += '<p class="section-header">F5 Distributed Cloud Incompatibilities:</p><ul>';
                             vs.f5dc_compatibility.incompatible.forEach(item => {
@@ -294,8 +309,14 @@
                             });
                             output += '</ul>';
                         }
-                        output += '</div>';
+                        if ((!vs.f5dc_compatibility.incompatible || vs.f5dc_compatibility.incompatible.length === 0) && 
+                            (!vs.f5dc_compatibility.warnings || vs.f5dc_compatibility.warnings.length === 0)) {
+                            output += '<p class="section-header compatible">Fully compatible with F5 Distributed Cloud</p>';
+                        }
+                    } else {
+                        output += '<p class="section-header compatible">Fully compatible with F5 Distributed Cloud</p>';
                     }
+                    output += '</div>';
                     
                     output += '</div>'; // end virtual-server
                 });
