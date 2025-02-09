@@ -1,7 +1,16 @@
 services:
-  f5-analyzer:
+  compatibility-tester:
     build: .
     ports:
       - "5000:5000"
+    environment:
+      - AST_PROMETHEUS_URL=http://prometheus:9090
+      - METRICS_ENABLED=true
+    networks:
+      - 7lc_network  # Same network as AST
     volumes:
       - .:/app
+
+networks:
+  7lc_network:
+    external: true   # Use AST's existing network
