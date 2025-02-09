@@ -104,7 +104,17 @@
             border-left: 3px solid #0077be;
             background-color: #fff;
         }
-
+       
+        if (analysis.unknown_events && analysis.unknown_events.length > 0) {
+            output += '<div class="event-section">';
+            output += '<p class="event-header">Non-Standard Events Found:</p>';
+            analysis.unknown_events.forEach(eventName => {
+                output += `<span class="event-tag warning">${eventName}</span>`;
+            });
+            output += '<p class="warning-text">These events are non-standard and may require special migration consideration.</p>';
+            output += '</div>';
+        }
+    
         /* Feature sections */
         .feature-section {
             margin: 10px 0;
