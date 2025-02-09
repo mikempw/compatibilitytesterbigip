@@ -254,6 +254,30 @@
             border-radius: 4px;
             border-left: 3px solid #e83e8c;
         }
+
+        /* Event tracking styles */
+        .event-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            margin: 2px 4px;
+            border-radius: 3px;
+            background-color: #e9ecef;
+            font-size: 0.85em;
+            color: #495057;
+        }
+        
+        .event-section {
+            margin-top: 10px;
+            padding: 8px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .event-header {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 5px;
+        }
     </style>
 </head>
 <body>
@@ -372,13 +396,25 @@
                             // Get analysis for this iRule
                             const analysis = vs.irules_analysis[iruleName];
                             if (analysis) {
+                                // Show events found
+                                if (analysis.events) {
+                                    output += '<div class="event-section">';
+                                    output += '<p class="event-header">Events Found:</p>';
+                                    Object.keys(analysis.events).forEach(eventName => {
+                                        output += `<span class="event-tag">${eventName}</span>`;
+                                    });
+                                    output += '</div>';
+                                }
+                                
                                 // Mappable Features
                                 if (analysis.mappable && analysis.mappable.length > 0) {
                                     output += '<div class="feature-section mappable">';
                                     output += '<p class="section-header">Mappable Features:</p>';
                                     output += '<ul>';
                                     analysis.mappable.forEach(feature => {
-                                        output += `<li>${feature.feature} -> ${feature.service_policy}`;
+                                        output += `<li>
+                                            ${feature.feature} -> ${feature.service_policy}
+                                            <span class="event-tag">${feature.event || 'GLOBAL'}</span>`;
                                         if (feature.notes) {
                                             output += `<br><small>${feature.notes}</small>`;
                                         }
@@ -393,7 +429,9 @@
                                     output += '<p class="section-header">Alternatives Needed:</p>';
                                     output += '<ul>';
                                     analysis.alternatives.forEach(feature => {
-                                        output += `<li>${feature.feature} -> ${feature.alternative}`;
+                                        output += `<li>
+                                            ${feature.feature} -> ${feature.alternative}
+                                            <span class="event-tag">${feature.event || 'GLOBAL'}</span>`;
                                         if (feature.notes) {
                                             output += `<br><small>${feature.notes}</small>`;
                                         }
@@ -401,14 +439,16 @@
                                     });
                                     output += '</ul></div>';
                                 }
-                                
-                                // Unsupported Features
-                                if (analysis.unsupported && analysis.unsupported.length > 0) {
+                                // Unsupported Features 
+                                if (analysis.unsupported && analysis.unsupported.length > 0) { 
                                     output += '<div class="feature-section unsupported">';
                                     output += '<p class="section-header">Unsupported Features:</p>';
                                     output += '<ul>';
                                     analysis.unsupported.forEach(feature => {
-                                        output += `<li>${feature.feature}: ${feature.note}</li>`;
+                                        output += `<li>
+                                            ${feature.feature}: ${feature.note}
+                                            <span class="event-tag">${feature.event || 'GLOBAL'}</span>
+                                        </li>`;
                                     });
                                     output += '</ul></div>';
                                 }
@@ -419,78 +459,81 @@
                                     output += '<p class="section-header">Warnings:</p>';
                                     output += '<ul>';
                                     analysis.warnings.forEach(warning => {
-                                        output += `<li>${warning.feature || warning}: ${warning.note || ''}</li>`;
+                                        output += `<li>
+                                            ${warning.feature || warning}: ${warning.note || ''}
+                                            <span class="event-tag">${warning.event || 'GLOBAL'}</span>
+                                        </li>`;
                                     });
                                     output += '</ul></div>';
                                 }
+
                                 // Recommendations
-                                                                if (analysis.recommendations && analysis.recommendations.length > 0) {
-                                                                    output += '<div class="feature-section recommendations">';
-                                                                    output += '<p class="section-header">XC Migration Recommendations:</p>';
-                                                                    output += '<ul>';
-                                                                    analysis.recommendations.forEach(rec => {
-                                                                        output += `<li>${rec}</li>`;
-                                                                    });
-                                                                    output += '</ul></div>';
-                                                                }
-                                                            } else {
-                                                                output += '<p>No analysis available for this iRule</p>';
-                                                            }
-                                                            output += '</div>'; // end irule-block
-                                                        });
-                                                        output += '</div>'; // end irules-section
-                                                    } else {
-                                                        output += '<p>No iRules attached</p>';
-                                                    }
-                                                    
-                                                    // NGINX Compatibility
-                                                    output += '<div class="compatibility-section">';
-                                                    if (vs.nginx_compatibility && vs.nginx_compatibility.length > 0) {
-                                                        output += '<p class="section-header">NGINX Compatibility Issues:</p><ul>';
-                                                        vs.nginx_compatibility.forEach(item => {
-                                                            output += `<li>${item}</li>`;
-                                                        });
-                                                        output += '</ul>';
-                                                    } else {
-                                                        output += '<p class="section-header compatible">Fully compatible with NGINX</p>';
-                                                    }
-                                                    output += '</div>';
-                                
-                                                    // F5 DC Compatibility
-                                                    output += '<div class="compatibility-section">';
-                                                    if (vs.f5dc_compatibility) {
-                                                        if (vs.f5dc_compatibility.incompatible && vs.f5dc_compatibility.incompatible.length > 0) {
-                                                            output += '<p class="section-header">F5 Distributed Cloud Incompatibilities:</p><ul>';
-                                                            vs.f5dc_compatibility.incompatible.forEach(item => {
-                                                                output += `<li>${item}</li>`;
-                                                            });
-                                                            output += '</ul>';
-                                                        }
-                                                        if (vs.f5dc_compatibility.warnings && vs.f5dc_compatibility.warnings.length > 0) {
-                                                            output += '<p class="section-header">F5 Distributed Cloud Warnings:</p><ul>';
-                                                            vs.f5dc_compatibility.warnings.forEach(item => {
-                                                                output += `<li>${item}</li>`;
-                                                            });
-                                                            output += '</ul>';
-                                                        }
-                                                        if ((!vs.f5dc_compatibility.incompatible || vs.f5dc_compatibility.incompatible.length === 0) && 
-                                                            (!vs.f5dc_compatibility.warnings || vs.f5dc_compatibility.warnings.length === 0)) {
-                                                            output += '<p class="section-header compatible">Fully compatible with F5 Distributed Cloud</p>';
-                                                        }
-                                                    } else {
-                                                        output += '<p class="section-header compatible">Fully compatible with F5 Distributed Cloud</p>';
-                                                    }
-                                                    output += '</div>';
-                                                    
-                                                    output += '</div>'; // end virtual-server
-                                                });
-                                            } else {
-                                                output += '<p>No virtual servers found.</p>';
-                                            }
-                                
-                                            return output;
-                                        }
-                                    </script>
-                                </body>
-                                </html>
-                                                                
+                                if (analysis.recommendations && analysis.recommendations.length > 0) {
+                                    output += '<div class="feature-section recommendations">';
+                                    output += '<p class="section-header">XC Migration Recommendations:</p>';
+                                    output += '<ul>';
+                                    analysis.recommendations.forEach(rec => {
+                                        output += `<li>${rec}</li>`;
+                                    });
+                                    output += '</ul></div>';
+                                }
+                            } else {
+                                output += '<p>No analysis available for this iRule</p>';
+                            }
+                            output += '</div>'; // end irule-block
+                        });
+                        output += '</div>'; // end irules-section
+                    } else {
+                        output += '<p>No iRules attached</p>';
+                    }
+                    
+                    // NGINX Compatibility
+                    output += '<div class="compatibility-section">';
+                    if (vs.nginx_compatibility && vs.nginx_compatibility.length > 0) {
+                        output += '<p class="section-header">NGINX Compatibility Issues:</p><ul>';
+                        vs.nginx_compatibility.forEach(item => {
+                            output += `<li>${item}</li>`;
+                        });
+                        output += '</ul>';
+                    } else {
+                        output += '<p class="section-header compatible">Fully compatible with NGINX</p>';
+                    }
+                    output += '</div>';
+
+                    // F5 DC Compatibility
+                    output += '<div class="compatibility-section">';
+                    if (vs.f5dc_compatibility) {
+                        if (vs.f5dc_compatibility.incompatible && vs.f5dc_compatibility.incompatible.length > 0) {
+                            output += '<p class="section-header">F5 Distributed Cloud Incompatibilities:</p><ul>';
+                            vs.f5dc_compatibility.incompatible.forEach(item => {
+                                output += `<li>${item}</li>`;
+                            });
+                            output += '</ul>';
+                        }
+                        if (vs.f5dc_compatibility.warnings && vs.f5dc_compatibility.warnings.length > 0) {
+                            output += '<p class="section-header">F5 Distributed Cloud Warnings:</p><ul>';
+                            vs.f5dc_compatibility.warnings.forEach(item => {
+                                output += `<li>${item}</li>`;
+                            });
+                            output += '</ul>';
+                        }
+                        if ((!vs.f5dc_compatibility.incompatible || vs.f5dc_compatibility.incompatible.length === 0) && 
+                            (!vs.f5dc_compatibility.warnings || vs.f5dc_compatibility.warnings.length === 0)) {
+                            output += '<p class="section-header compatible">Fully compatible with F5 Distributed Cloud</p>';
+                        }
+                    } else {
+                        output += '<p class="section-header compatible">Fully compatible with F5 Distributed Cloud</p>';
+                    }
+                    output += '</div>';
+                    
+                    output += '</div>'; // end virtual-server
+                });
+            } else {
+                output += '<p>No virtual servers found.</p>';
+            }
+
+            return output;
+        }
+    </script>
+</body>
+</html>
