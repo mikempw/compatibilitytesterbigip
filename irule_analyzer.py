@@ -5,19 +5,36 @@ def analyze_irule(irule_content):
     Analyzes an iRule and determines compatibility with F5 Distributed Cloud service policies.
     Returns mappable features, alternatives needed, and unsupported features.
     """
-    analysis = {
-        "mappable": [],        # Can be directly mapped to service policies
-        "alternatives": [],     # Requires alternative implementation
-        "unsupported": [],     # Currently not possible in XC
-        "warnings": [],         # Additional considerations
-        "events": {}           # Track which events contain which features
+        KNOWN_EVENTS = {
+        'HTTP_REQUEST', 'HTTP_RESPONSE', 
+        'HTTP_REQUEST_DATA', 'HTTP_RESPONSE_DATA',
+        'CLIENT_ACCEPTED', 'SERVER_CONNECTED',
+        'CLIENTSSL_HANDSHAKE', 'CLIENTSSL_CLIENTCERT',
+        'RULE_INIT'
     }
-    
-    print(f"Starting iRule content analysis...")
+
+    analysis = {
+        "mappable": [],
+        "alternatives": [],
+        "unsupported": [],
+        "warnings": [],
+        "events": {},
+        "unknown_events": []  # New field for tracking unknown events
+    }
     
     # Extract all event blocks first
     events = extract_all_events(irule_content)
     analysis["events"] = events
+    
+    # Check for unknown events
+    for event_name in events.keys():
+        if event_name not in KNOWN_EVENTS:
+            analysis["unknown_events"].append(event_name)
+            analysis["warnings"].append({
+                "feature": f"Unknown event: {event_name}",
+                "note": "This event type is not standard and may require special migration consideration",
+                "event": event_name
+            })
     
     # Check for session tracking
     if re.search(r'CLIENT_ACCEPTED.*?IP::client_addr', irule_content, re.DOTALL):
