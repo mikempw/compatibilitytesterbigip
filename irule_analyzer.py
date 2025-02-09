@@ -5,7 +5,7 @@ def analyze_irule(irule_content):
     Analyzes an iRule and determines compatibility with F5 Distributed Cloud service policies.
     Returns mappable features, alternatives needed, and unsupported features.
     """
-         KNOWN_EVENTS = {
+    KNOWN_EVENTS = {
         'HTTP_REQUEST', 'HTTP_RESPONSE', 
         'HTTP_REQUEST_DATA', 'HTTP_RESPONSE_DATA',
         'CLIENT_ACCEPTED', 'SERVER_CONNECTED',
