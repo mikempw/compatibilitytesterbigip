@@ -1,0 +1,167 @@
+import yaml
+import os
+from typing import Dict, List, Optional
+from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+from dataclasses import dataclass
+
+@dataclass
+class BIGIPTarget:
+    name: str
+    address: str
+    port: int
+    username: str
+    password: str
+
+class ASTConfigReader:
+    def __init__(self, ast_config_dir: str):
+        self.config_dir = ast_config_dir
+        self.receivers_file = os.path.join(ast_config_dir, 'bigip_receivers.yaml')
+        self.defaults_file = os.path.join(ast_config_dir, 'ast_defaults.yaml')
+
+    def load_configs(self) -> List[BIGIPTarget]:
+        """Load and merge configurations from AST config files"""
+        try:
+            with open(self.receivers_file, 'r') as f:
+                receivers = yaml.safe_load(f)
+            
+            with open(self.defaults_file, 'r') as f:
+                defaults = yaml.safe_load(f)
+
+            return self._process_configs(receivers, defaults)
+        except Exception as e:
+            print(f"Error loading AST configs: {str(e)}")
+            return []
+
+    def _process_configs(self, receivers: Dict, defaults: Dict) -> List[BIGIPTarget]:
+        """Process and merge configurations"""
+        targets = []
+        default_port = defaults.get('port', 443)
+        default_username = defaults.get('username', '')
+        
+        for receiver in receivers.get('receivers', []):
+            if receiver.get('type') == 'bigip':
+                target = BIGIPTarget(
+                    name=receiver.get('name', ''),
+                    address=receiver.get('address', ''),
+                    port=receiver.get('port', default_port),
+                    username=receiver.get('username', default_username),
+                    password=receiver.get('password', '')
+                )
+                targets.append(target)
+        
+        return targets
+
+class MigrationMetricsHandler:
+    def __init__(self, pushgateway_url: str):
+        self.pushgateway_url = pushgateway_url
+        self.registry = CollectorRegistry()
+        
+        # Define metrics
+        self.vip_ready = Gauge('f5_vip_migration_ready', 
+                              'Migration readiness status', 
+                              ['vip', 'bigip_host'],
+                              registry=self.registry)
+        
+        self.readiness_score = Gauge('f5_vip_readiness_score', 
+                                    'Migration readiness percentage', 
+                                    ['vip', 'bigip_host'],
+                                    registry=self.registry)
+        
+        self.feature_count = Gauge('f5_vip_feature_count', 
+                                 'Count of features by type', 
+                                 ['vip', 'bigip_host', 'type'],
+                                 registry=self.registry)
+        
+        self.event_count = Gauge('f5_vip_event_count', 
+                                'Count of events by type', 
+                                ['vip', 'bigip_host', 'event'],
+                                registry=self.registry)
+
+    def update_metrics(self, analysis_result: Dict, vip_name: str, bigip_host: str):
+        """Update metrics for a VIP analysis result"""
+        # Calculate readiness
+        total_features = (len(analysis_result['mappable']) + 
+                         len(analysis_result['alternatives']) + 
+                         len(analysis_result['unsupported']))
+        
+        if total_features > 0:
+            ready_features = len(analysis_result['mappable'])
+            score = (ready_features / total_features) * 100
+        else:
+            score = 0
+
+        # Update metrics
+        self.vip_ready.labels(vip=vip_name, 
+                            bigip_host=bigip_host).set(1 if score > 90 else 0)
+        
+        self.readiness_score.labels(vip=vip_name, 
+                                  bigip_host=bigip_host).set(score)
+
+        # Feature counts
+        for feature_type in ['mappable', 'alternatives', 'unsupported', 'warnings']:
+            self.feature_count.labels(
+                vip=vip_name,
+                bigip_host=bigip_host,
+                type=feature_type
+            ).set(len(analysis_result[feature_type]))
+
+        # Event counts
+        for event_name in analysis_result.get('events', {}):
+            self.event_count.labels(
+                vip=vip_name,
+                bigip_host=bigip_host,
+                event=event_name
+            ).set(1)
+
+    def push_metrics(self, job_name: str):
+        """Push metrics to Pushgateway"""
+        try:
+            push_to_gateway(self.pushgateway_url, job=job_name, registry=self.registry)
+        except Exception as e:
+            print(f"Error pushing metrics: {str(e)}")
+
+class MigrationAnalyzer:
+    def __init__(self, ast_config_dir: str, pushgateway_url: str):
+        self.config_reader = ASTConfigReader(ast_config_dir)
+        self.metrics_handler = MigrationMetricsHandler(pushgateway_url)
+        
+    def run_analysis(self):
+        """Run analysis for all configured targets"""
+        targets = self.config_reader.load_configs()
+        results = {}
+        
+        for target in targets:
+            try:
+                # Your existing analyzer code here
+                analysis_results = analyzer.analyze(
+                    hostname=target.address,
+                    port=target.port,
+                    username=target.username,
+                    password=target.password
+                )
+                
+                # Process results for each VIP
+                for vs_name, vs_analysis in analysis_results.get('virtual_servers', {}).items():
+                    self.metrics_handler.update_metrics(
+                        vs_analysis,
+                        vip_name=vs_name,
+                        bigip_host=target.address
+                    )
+                
+                results[target.address] = analysis_results
+            except Exception as e:
+                print(f"Error analyzing {target.address}: {str(e)}")
+                results[target.address] = {"error": str(e)}
+        
+        # Push all metrics
+        self.metrics_handler.push_metrics("f5_migration_analysis")
+        
+        return results
+
+# Usage example
+if __name__ == "__main__":
+    analyzer = MigrationAnalyzer(
+        ast_config_dir="/path/to/ast/config",
+        pushgateway_url="http://localhost:9091"
+    )
+    results = analyzer.run_analysis()
