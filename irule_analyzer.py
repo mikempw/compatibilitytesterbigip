@@ -2,188 +2,193 @@ import re
 
 def analyze_irule(irule_content):
     """
-    Enhanced iRule analyzer with XC migration recommendations
+    Analyzes an iRule and determines compatibility with F5 Distributed Cloud service policies.
+    Returns mappable features, alternatives needed, and unsupported features.
     """
     analysis = {
-        "mappable": [],        # Can be directly mapped to XC features
+        "mappable": [],        # Can be directly mapped to service policies
         "alternatives": [],     # Requires alternative implementation
         "unsupported": [],     # Currently not possible in XC
-        "warnings": [],        # Additional considerations
-        "recommendations": []   # Specific XC feature recommendations
+        "warnings": []         # Additional considerations
     }
     
     print(f"Starting iRule content analysis...")
-    print(f"Content snippet: {irule_content[:100]}")
     
-    # Check for common patterns first
-    check_common_patterns(irule_content, analysis)
-    
-    # Event-specific analysis
-    events = {
-        'RULE_INIT': check_rule_init_capabilities,
-        'CLIENT_ACCEPTED': check_client_accepted_capabilities,
-        'CLIENTSSL_HANDSHAKE': check_clientssl_handshake_capabilities,
-        'CLIENTSSL_CLIENTCERT': check_clientssl_clientcert_capabilities,
-        'HTTP_REQUEST': check_http_request_capabilities,
-        'HTTP_REQUEST_DATA': check_http_request_data_capabilities,
-        'HTTP_RESPONSE': check_http_response_capabilities,
-        'HTTP_RESPONSE_DATA': check_http_response_data_capabilities,
-        'LB_SELECTED': check_lb_selected_capabilities,
-        'LB_FAILED': check_lb_failed_capabilities
-    }
-    
-    # Extract and analyze each event
-    for event, checker in events.items():
-        print(f"Checking for {event} event...")
-        if re.search(rf'when\s+{event}\s*{{', irule_content, re.IGNORECASE):
-            print(f"Found {event} event")
-            event_content = extract_event_content(irule_content, event)
-            if event_content:
-                print(f"Analyzing {event} content...")
-                checker(event_content, analysis)
-                print(f"Completed {event} analysis")
-            else:
-                print(f"No content found for {event}")
-    
-    return analysis
-
-def check_common_patterns(content, analysis):
-    """Check for common iRule patterns that have direct XC equivalents"""
-    
-    # Original pattern checks
-    if re.search(r'HTTP::header', content):
+    # Check for session tracking
+    if re.search(r'CLIENT_ACCEPTED.*?IP::client_addr', irule_content, re.DOTALL):
         analysis["mappable"].append({
-            "feature": "Header Manipulation",
-            "service_policy": "Request/Response Headers Action in service policy",
-            "notes": "Header modifications available at both LB and route level"
+            "feature": "Client IP tracking",
+            "service_policy": "Client IP match conditions in service policy"
         })
     
-    if re.search(r'IP::client_addr|IP::local_addr', content):
-        analysis["mappable"].append({
-            "feature": "IP address matching",
-            "service_policy": "IP Prefix List Matcher in service policy",
-            "notes": "Client IP matching supported in service policies"
-        })
-
-    # New pattern checks from documentation
-    if re.search(r'HTTP::redirect', content):
-        analysis["mappable"].append({
-            "feature": "HTTP Redirects",
-            "service_policy": "HTTP Load Balancer checkbox or L7 route configuration",
-            "notes": "Simple redirects are a checkbox, complex redirects use L7 routes"
-        })
-
-    # Check for logging patterns
-    if re.search(r'log\s+local', content):
+    # Check for table operations
+    if re.search(r'table\s+(set|lookup|delete)', irule_content):
         analysis["alternatives"].append({
-            "feature": "Custom Logging",
-            "alternative": "XC built-in telemetry and logging",
-            "notes": "XC provides comprehensive logging with headers, SSL info, etc."
+            "feature": "Table operations for state management",
+            "alternative": "Consider using distributed key-value store or custom metadata"
         })
-
-    # Check for websocket handling
-    if 'HTTP::is_websocket' in content or 'WebSocket' in content:
+    
+    # Check for pattern matching and redirects
+    if re.search(r'regexp|string\s+match', irule_content):
+        analysis["mappable"].append({
+            "feature": "Pattern matching",
+            "service_policy": "Regular expression matching in service policy rules"
+        })
+    
+    if re.search(r'HTTP::redirect', irule_content):
+        analysis["mappable"].append({
+            "feature": "HTTP redirects",
+            "service_policy": "HTTP redirect actions in service policy"
+        })
+    
+    # Check for data collection
+    if re.search(r'HTTP::collect', irule_content):
+        analysis["alternatives"].append({
+            "feature": "Request/Response data collection",
+            "alternative": "Consider using WAF policies or custom rules for payload inspection"
+        })
+    
+    # Check for header manipulation
+    if re.search(r'HTTP::header\s+(insert|remove)', irule_content):
+        analysis["mappable"].append({
+            "feature": "Header manipulation",
+            "service_policy": "Request/Response header actions in service policy"
+        })
+    
+    # Check for response handling
+    if 'HTTP_RESPONSE' in irule_content:
+        analysis["mappable"].append({
+            "feature": "Response processing",
+            "service_policy": "Response phase actions in service policy"
+        })
+    
+    # Check for complex flow control
+    if re.search(r'(if|switch|foreach|while)', irule_content):
+        analysis["warnings"].append({
+            "feature": "Complex flow control",
+            "note": "May require multiple service policy rules and careful logic restructuring"
+        })
+    
+    # Check for static variable initialization
+    if re.search(r'set\s+static::', irule_content):
+        analysis["alternatives"].append({
+            "feature": "Static variable initialization",
+            "alternative": "Consider using system metadata or configuration"
+        })
+    
+    # Check for memory/buffer management
+    if re.search(r'string\s+range|string\s+length', irule_content):
+        analysis["warnings"].append({
+            "feature": "Memory/buffer management",
+            "note": "Consider request/response size limits in Load Balancer configuration"
+        })
+    
+    # Check for TCP/IP level operations
+    if re.search(r'TCP::|IP::', irule_content):
+        analysis["alternatives"].append({
+            "feature": "TCP/IP level operations",
+            "alternative": "Use Load Balancer TCP/UDP settings and service policies where applicable"
+        })
+    
+    # Check for error handling
+    if re.search(r'catch\s*{', irule_content):
+        analysis["warnings"].append({
+            "feature": "TCL error handling",
+            "note": "Implement appropriate error handling in service policies and monitoring"
+        })
+    
+    # Check for logging
+    if re.search(r'log\s+local', irule_content):
+        analysis["alternatives"].append({
+            "feature": "Local logging",
+            "alternative": "Configure appropriate logging in XC monitoring and alerts"
+        })
+    
+    # Check for WebSocket handling
+    if 'HTTP::is_websocket' in irule_content or 'WebSocket' in irule_content:
         analysis["mappable"].append({
             "feature": "WebSocket Support",
             "service_policy": "WebSocket configuration in Load Balancer",
             "notes": "Native WebSocket support with proper configuration"
         })
-
-    # TCP option and proxy protocol
-    if re.search(r'TCP::option', content):
-        analysis["alternatives"].append({
-            "feature": "TCP Options",
-            "alternative": "Proxy Protocol in Origin Pool Settings",
-            "notes": "Use Proxy Protocol instead of TCP Option 28 for client IP"
-        })
-
-    # Error page handling
-    if re.search(r'HTTP::respond|HTTP::status', content):
-        analysis["mappable"].append({
-            "feature": "Custom Error Pages",
-            "service_policy": "Custom Error Response in Load Balancer",
-            "notes": "Supports custom error pages with dynamic content"
-        })
-
-    # Keep-alive and connection header handling
-    if re.search(r'Connection|Keep-Alive', content):
+    
+    # Check for HTTP/2 specific features
+    if re.search(r'HTTP2::', irule_content):
         analysis["warnings"].append({
-            "feature": "HTTP Connection Headers",
-            "note": "Connection headers prohibited in HTTP/2 and HTTP/3",
-            "recommendation": "Configure timeouts in LB and Origin settings"
-        })
-
-    # Complex string manipulation
-    if re.search(r'(regexp|regsub|substr|replace)', content):
-        analysis["warnings"].append({
-            "feature": "Complex string manipulation",
-            "note": "Consider service policies or NGINX service chaining"
-        })
-
-    # Health monitoring
-    if re.search(r'monitor\s+|health_check', content):
-        analysis["mappable"].append({
-            "feature": "Health Monitoring",
-            "service_policy": "Health Checks in Origin Pool",
-            "notes": "Configure proper timeouts and HTTP version"
-        })
-
-def check_client_accepted_capabilities(content, analysis):
-    """Analyze CLIENT_ACCEPTED event content"""
-    if re.search(r'IP::client_addr', content):
-        analysis["mappable"].append({
-            "feature": "Client IP Tracking",
-            "service_policy": "Available in XC service policies and logging",
-            "notes": "Client IP information is automatically tracked in XC"
+            "feature": "HTTP/2 Specific Features",
+            "note": "Some HTTP/2 features may need reconfiguration in XC",
+            "recommendation": "Configure HTTP/2 settings in Load Balancer configuration"
         })
     
-    if re.search(r'TCP::', content):
-        analysis["alternatives"].append({
-            "feature": "TCP Level Controls",
-            "alternative": "Load Balancer TCP/UDP settings",
-            "notes": "Configure TCP settings in Load Balancer configuration"
-        })
-
-def check_rule_init_capabilities(content, analysis):
-    """Enhanced RULE_INIT analysis"""
-    # Original functionality
-    if re.search(r'set\s+static::', content):
-        analysis["alternatives"].append({
-            "feature": "Static variable initialization",
-            "alternative": "System metadata or LB configuration"
+    # Check for SSL/TLS specific operations
+    if re.search(r'SSL::|X509::', irule_content):
+        analysis["mappable"].append({
+            "feature": "SSL/TLS Operations",
+            "service_policy": "Available through Load Balancer SSL/TLS settings",
+            "notes": "Configure SSL/TLS settings at LB level"
         })
     
-    # New functionality
-    if re.search(r'table\s+set', content):
-        analysis["unsupported"].append({
-            "feature": "iRule tables",
-            "note": "Consider XC metadata or custom configuration"
-        })
+    # Check for specific event handlers
+    events = {
+        'HTTP_REQUEST': check_http_request_capabilities,
+        'HTTP_RESPONSE': check_http_response_capabilities,
+        'CLIENT_ACCEPTED': check_client_accepted_capabilities,
+        'SERVER_CONNECTED': check_server_connected_capabilities,
+        'RULE_INIT': check_rule_init_capabilities,
+        'HTTP_REQUEST_DATA': check_http_request_data_capabilities,
+        'HTTP_RESPONSE_DATA': check_http_response_data_capabilities,
+        'CLIENTSSL_HANDSHAKE': check_clientssl_handshake_capabilities,
+        'CLIENTSSL_CLIENTCERT': check_clientssl_clientcert_capabilities
+    }
+    
+    for event, checker in events.items():
+        if re.search(rf'when\s+{event}\s*{{', irule_content, re.IGNORECASE):
+            event_content = extract_event_content(irule_content, event)
+            if event_content:
+                checker(event_content, analysis)
+    
+    return analysis
 
-    # Data group handling
-    if re.search(r'class\s+match|data\s+group', content):
-        analysis["alternatives"].append({
-            "feature": "Data Groups",
-            "alternative": "Service Policies or Custom Metadata",
-            "notes": "Use service policies for matching conditions"
-        })
+def extract_event_content(irule_content, event):
+    """Extract the content within a specific event block"""
+    pattern = rf'when\s+{event}\s*{{(.*?)}}'
+    matches = re.finditer(pattern, irule_content, re.DOTALL)
+    contents = []
+    for match in matches:
+        contents.append(match.group(1))
+    return '\n'.join(contents) if contents else None
 
 def check_http_request_capabilities(content, analysis):
-    """Enhanced HTTP_REQUEST analysis"""
-    # Original functionality
+    """Analyze HTTP_REQUEST event content"""
+    
+    # URI manipulation
     if re.search(r'HTTP::uri', content):
         analysis["mappable"].append({
             "feature": "URI manipulation",
             "service_policy": "HTTP URI Path Matcher in service policy rules"
         })
     
-    if re.search(r'HTTP::method', content):
+    # Query parameter handling
+    if re.search(r'HTTP::query', content):
         analysis["mappable"].append({
-            "feature": "HTTP method matching",
-            "service_policy": "HTTP Method Matcher in service policy rules"
+            "feature": "Query parameter processing",
+            "service_policy": "Query parameter matching in service policy"
         })
-
-    # New functionality
+    
+    # Custom content routing
+    if re.search(r'pool\s+\S+', content):
+        analysis["alternatives"].append({
+            "feature": "Custom content routing",
+            "alternative": "Use Load Balancer rules and origin pools"
+        })
+    
+    # Path manipulation
+    if re.search(r'HTTP::path', content):
+        analysis["mappable"].append({
+            "feature": "Path manipulation",
+            "service_policy": "L7 Route path rewrite rules"
+        })
+    
     # Host header manipulation
     if re.search(r'HTTP::host', content):
         analysis["mappable"].append({
@@ -192,46 +197,31 @@ def check_http_request_capabilities(content, analysis):
             "notes": "Configure in route settings"
         })
 
-    # Path manipulation
-    if re.search(r'HTTP::path|HTTP::uri\s+[^\s]+\s*\[', content):
-        analysis["mappable"].append({
-            "feature": "Path manipulation",
-            "service_policy": "L7 Route path rewrite rules",
-            "notes": "Available in route configuration"
-        })
-
-    # Query parameter handling
-    if re.search(r'HTTP::query', content):
-        analysis["mappable"].append({
-            "feature": "Query parameter processing",
-            "service_policy": "Query parameter matching in routes"
-        })
-
 def check_http_request_data_capabilities(content, analysis):
-    """Enhanced HTTP_REQUEST_DATA analysis"""
-    if re.search(r'HTTP::collect|HTTP::payload', content):
+    """Analyze HTTP_REQUEST_DATA event content"""
+    if re.search(r'HTTP::payload', content):
         analysis["alternatives"].append({
             "feature": "Request payload inspection",
-            "alternative": "WAF policies or NGINX service chaining",
-            "notes": "Use WAF for payload inspection or chain with NGINX"
+            "alternative": "Use WAF policies or custom security rules"
         })
 
 def check_http_response_capabilities(content, analysis):
-    """Enhanced HTTP_RESPONSE analysis"""
-    # Header manipulation
+    """Analyze HTTP_RESPONSE event content"""
+    
+    # Response header manipulation
     if re.search(r'HTTP::header', content):
         analysis["mappable"].append({
             "feature": "Response header manipulation",
             "service_policy": "Response Headers Action in service policy"
         })
     
-    # Status code handling
-    if re.search(r'HTTP::status', content):
-        analysis["mappable"].append({
-            "feature": "Response status modification",
-            "service_policy": "Custom error responses and status codes"
+    # Response payload modification
+    if re.search(r'HTTP::payload', content):
+        analysis["unsupported"].append({
+            "feature": "Response payload modification",
+            "note": "Response body modification not directly supported"
         })
-
+    
     # HSTS and security headers
     if re.search(r'Strict-Transport-Security|X-Frame-Options|Content-Security-Policy', content):
         analysis["mappable"].append({
@@ -242,15 +232,51 @@ def check_http_response_capabilities(content, analysis):
 
 def check_http_response_data_capabilities(content, analysis):
     """Analyze HTTP_RESPONSE_DATA event content"""
-    if re.search(r'HTTP::collect|HTTP::payload', content):
+    if re.search(r'HTTP::payload', content):
         analysis["unsupported"].append({
             "feature": "Response data manipulation",
-            "note": "Response payload modification not supported in XC",
-            "alternative": "Consider NGINX service chaining if needed"
+            "note": "Response payload modification not supported"
+        })
+
+def check_client_accepted_capabilities(content, analysis):
+    """Analyze CLIENT_ACCEPTED event content"""
+    
+    # Client-side connection handling
+    if re.search(r'TCP::|IP::', content):
+        analysis["alternatives"].append({
+            "feature": "Client connection handling",
+            "alternative": "Use Load Balancer TCP/UDP settings"
+        })
+
+def check_server_connected_capabilities(content, analysis):
+    """Analyze SERVER_CONNECTED event content"""
+    
+    # Server-side connection handling
+    if re.search(r'TCP::|IP::', content):
+        analysis["alternatives"].append({
+            "feature": "Server connection handling",
+            "alternative": "Configure in origin pool settings"
+        })
+
+def check_rule_init_capabilities(content, analysis):
+    """Analyze RULE_INIT event content"""
+    
+    # Static variables
+    if re.search(r'set\s+static::', content):
+        analysis["alternatives"].append({
+            "feature": "Static variable initialization",
+            "alternative": "Use system metadata or configuration"
+        })
+    
+    # Regular expressions
+    if re.search(r'regexp|regex', content):
+        analysis["mappable"].append({
+            "feature": "Regular expression patterns",
+            "service_policy": "Regular expression matching in rules"
         })
 
 def check_clientssl_handshake_capabilities(content, analysis):
-    """Enhanced SSL/TLS analysis"""
+    """Analyze SSL/TLS handshake handling"""
     # SSL/TLS Info
     if re.search(r'SSL::cipher', content):
         analysis["mappable"].append({
@@ -276,44 +302,10 @@ def check_clientssl_clientcert_capabilities(content, analysis):
             "notes": "XC supports mTLS and can extract X.509 attributes to headers"
         })
 
-def check_lb_selected_capabilities(content, analysis):
-    """Enhanced load balancing analysis"""
-    # Dynamic pool selection
-    if re.search(r'pool\s+[^\s]+', content):
-        analysis["mappable"].append({
-            "feature": "Dynamic pool selection",
-            "service_policy": "L7 Routes with Origin Pools",
-            "notes": "Use multiple routes for traffic steering"
-        })
-
-    # Load balancing methods
-    if re.search(r'LB::method|LB::mode', content):
-        analysis["alternatives"].append({
-            "feature": "Custom LB methods",
-            "alternative": "Origin Pool load balancing settings",
-            "notes": "Configure in origin pool settings"
-        })
-
-def check_lb_failed_capabilities(content, analysis):
-    """Analyze LB_FAILED event content"""
-    if re.search(r'HTTP::respond', content):
-        analysis["mappable"].append({
-            "feature": "Custom error handling",
-            "service_policy": "Custom Error Response in Load Balancer",
-            "notes": "Configure custom error pages for failed requests"
-        })
-
-def extract_event_content(irule_content, event):
-    """Extract event content with enhanced pattern matching"""
-    pattern = rf'when\s+{event}\s*{{(.*?)}}'
-    matches = re.finditer(pattern, irule_content, re.DOTALL)
-    contents = []
-    for match in matches:
-        contents.append(match.group(1).strip())
-    return '\n'.join(contents) if contents else None
-
 def generate_service_policy_template(analysis):
-    """Enhanced service policy template generation"""
+    """
+    Generates a sample service policy template based on the analysis results
+    """
     template = {
         "metadata": {
             "name": "converted-irule-policy",
@@ -326,7 +318,7 @@ def generate_service_policy_template(analysis):
     
     rule_counter = 0
     
-    # Generate rules based on mappable features
+    # Add rules based on mappable features
     for feature in analysis["mappable"]:
         rule_counter += 1
         rule = {
@@ -334,45 +326,30 @@ def generate_service_policy_template(analysis):
             "action": "ALLOW",
             "conditions": []
         }
-
-        # URI matching
+        
         if "URI" in feature["service_policy"]:
             rule["conditions"].append({
-                "match": {
-                    "http_uri_path": {
-                        "match_type": "PREFIX_MATCH",
-                        "path": "/"
-                    }
-                }
+                "type": "URI_PATH",
+                "pattern": "/*"
             })
-
-        # HTTP method matching
-        elif "Method" in feature["service_policy"]:
-            rule["conditions"].append({
-                "match": {
-                    "http_method": ["GET", "POST"]
-                }
-            })
-
-        # Header manipulation
-        elif "Headers" in feature["service_policy"]:
+        
+        if "header" in feature["service_policy"].lower():
             rule["actions"] = {
-                "request_headers": {
+                "headers": {
                     "add": {
                         "name": "X-Example",
                         "value": "value"
                     }
                 }
             }
-
-        # IP matching
-        elif "IP Prefix" in feature["service_policy"]:
-            rule["conditions"].append({
-                "match": {
-                    "ip_prefix_list": ["0.0.0.0/0"]
-                }
-            })
-
+        
+        if "redirect" in feature["service_policy"].lower():
+            rule["action"] = "REDIRECT"
+            rule["redirect"] = {
+                "protocol": "HTTPS",
+                "port": 443
+            }
+        
         template["spec"]["rules"].append(rule)
     
     return template
@@ -396,7 +373,7 @@ if __name__ == "__main__":
     
     result = analyze_irule(test_irule)
     print("\nAnalysis Result:")
-    for category in ["mappable", "alternatives", "unsupported", "warnings", "recommendations"]:
+    for category in ["mappable", "alternatives", "unsupported", "warnings"]:
         print(f"\n{category.upper()}:")
         for item in result[category]:
             print(f"- {item['feature']}")
@@ -408,5 +385,3 @@ if __name__ == "__main__":
                 print(f"  Note: {item['note']}")
             if "notes" in item:
                 print(f"  Notes: {item['notes']}")
-            if "recommendation" in item:
-                print(f"  Recommendation: {item['recommendation']}")
