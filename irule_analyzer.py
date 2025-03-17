@@ -1,4 +1,5 @@
 import re
+
 def analyze_irule(irule_content):
     """
     Analyzes an iRule and determines compatibility with F5 Distributed Cloud service policies.
@@ -11,8 +12,6 @@ def analyze_irule(irule_content):
         "warnings": [],         # Additional considerations
         "events": {}           # Track which events contain which features
     }
-    
-    print(f"Starting iRule content analysis...")
     
     # Extract all event blocks first
     events = extract_all_events(irule_content)
@@ -404,43 +403,3 @@ def generate_service_policy_template(analysis):
         template["spec"]["rules"].append(rule)
     
     return template
-
-# Example usage
-if __name__ == "__main__":
-    test_irule = """
-    when RULE_INIT {
-        set static::pattern "test"
-    }
-    when HTTP_REQUEST {
-        if { [HTTP::uri] starts_with "/api" } {
-            HTTP::header insert "X-API" "true"
-            pool api_pool
-        }
-    }
-    when HTTP_RESPONSE {
-        HTTP::header insert "Strict-Transport-Security" "max-age=31536000"
-    }
-    """
-    
-    result = analyze_irule(test_irule)
-    print("\nAnalysis Result:")
-    for category in ["mappable", "alternatives", "unsupported", "warnings"]:
-        print(f"\n{category.upper()}:")
-        for item in result[category]:
-            print(f"- {item['feature']}")
-            if "service_policy" in item:
-                print(f"  Service Policy: {item['service_policy']}")
-            if "alternative" in item:
-                print(f"  Alternative: {item['alternative']}")
-            if "note" in item:
-                print(f"  Note: {item['note']}")
-            if "notes" in item:
-                print(f"  Notes: {item['notes']}")
-            if "event" in item:
-                print(f"  Event: {item['event']}")
-            
-    # Print all events found
-    if result.get("events"):
-        print("\nEVENTS FOUND:")
-        for event_name, event_content in result["events"].items():
-            print(f"- {event_name}")
