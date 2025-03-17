@@ -1,5 +1,4 @@
 import re
-
 def analyze_irule(irule_content):
     """
     Analyzes an iRule and determines compatibility with F5 Distributed Cloud service policies.
