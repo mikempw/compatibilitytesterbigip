@@ -172,6 +172,22 @@
             border-radius: 5px;
             overflow-x: auto;
         }
+        .warning-section {
+            border-left-color: #f39c12;
+            background-color: rgba(243, 156, 18, 0.1);
+        }
+        .mappable-section {
+            border-left-color: #2ecc71;
+            background-color: rgba(46, 204, 113, 0.1);
+        }
+        .alternatives-section {
+            border-left-color: #f39c12;
+            background-color: rgba(243, 156, 18, 0.1);
+        }
+        .unsupported-section {
+            border-left-color: #e74c3c;
+            background-color: rgba(231, 76, 60, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -227,7 +243,7 @@ document.getElementById('analyzeForm').onsubmit = function(e) {
             rawData.style.display = rawData.style.display === 'none' ? 'block' : 'none';
         });
         
-        // Add collapsible functionality
+        // Add collapsible functionality AND automatically expand some sections
         const collapsibles = document.getElementsByClassName("collapsible");
         for (let i = 0; i < collapsibles.length; i++) {
             collapsibles[i].addEventListener("click", function() {
@@ -239,7 +255,28 @@ document.getElementById('analyzeForm').onsubmit = function(e) {
                     content.style.maxHeight = content.scrollHeight + "px";
                 }
             });
+            
+            // Auto-expand sections with "iRules Analysis" or sections containing compatibility issues
+            if (collapsibles[i].textContent.includes("iRules Analysis") || 
+                (collapsibles[i].nextElementSibling && 
+                 collapsibles[i].nextElementSibling.querySelector('.incompatible'))) {
+                // Simulate a click to expand these sections by default
+                collapsibles[i].click();
+            }
         }
+        
+        // Auto-expand first level of virtual servers if they have compatibility issues
+        setTimeout(function() {
+            const virtualServerButtons = document.querySelectorAll('button.collapsible');
+            virtualServerButtons.forEach(button => {
+                const content = button.nextElementSibling;
+                if (content && content.querySelector('.incompatible')) {
+                    if (!button.classList.contains('active')) {
+                        button.click();
+                    }
+                }
+            });
+        }, 100);
     })
     .catch(error => {
         console.error('Error:', error);
@@ -285,10 +322,33 @@ function formatResults(data) {
         output += '<h3>Virtual Servers Details:</h3>';
         
         data.virtual_servers.forEach((vs, index) => {
-            output += `<button class="collapsible">${vs.name} (${vs.destination})</button>`;
+            // Check if this VS has compatibility issues to modify display
+            const hasCompatibilityIssues = 
+                (vs.nginx_compatibility && vs.nginx_compatibility.length > 0) || 
+                (vs.f5dc_compatibility && vs.f5dc_compatibility.length > 0);
+            
+            // Add an indicator if there are compatibility issues
+            let vsTitle = vs.name;
+            if (vs.fullPath) {
+                vsTitle = vs.fullPath;
+            } else if (vs.partition && vs.partition !== 'Common') {
+                vsTitle = `${vs.partition}/${vs.name}`;
+            }
+            vsTitle += ` (${vs.destination})`;
+            
+            if (hasCompatibilityIssues) {
+                vsTitle += ' ⚠️'; // Add warning icon for VIPs with issues
+            }
+            
+            output += `<button class="collapsible">${vsTitle}</button>`;
             output += '<div class="content">';
             output += `<div class="detail-section">`;
             output += `<h4 class="detail-header">${vs.name}</h4>`;
+            
+            if (vs.partition && vs.partition !== 'Common') {
+                output += `<p class="info-item"><strong>Partition:</strong> ${vs.partition}</p>`;
+            }
+            
             output += `<p class="info-item"><strong>Destination:</strong> ${vs.destination}</p>`;
             output += `<p class="info-item"><strong>Pool:</strong> ${vs.pool}</p>`;
             
@@ -318,7 +378,14 @@ function formatResults(data) {
                     output += `<div class="content">`;
                     
                     vs.irules_analysis.forEach(iruleAnalysis => {
-                        output += `<h4>${iruleAnalysis.name}</h4>`;
+                        let iruleName = iruleAnalysis.name;
+                        if (iruleAnalysis.fullPath) {
+                            iruleName = iruleAnalysis.fullPath;
+                        } else if (iruleAnalysis.partition && iruleAnalysis.partition !== 'Common') {
+                            iruleName = `${iruleAnalysis.partition}/${iruleAnalysis.name}`;
+                        }
+                        
+                        output += `<h4>${iruleName}</h4>`;
                         
                         const analysis = iruleAnalysis.analysis;
                         
@@ -338,7 +405,7 @@ function formatResults(data) {
                         
                         // Add mappable features
                         if (analysis.mappable && analysis.mappable.length > 0) {
-                            output += `<div class="compatibility-section compatible">
+                            output += `<div class="compatibility-section mappable-section">
                                 <strong>Mappable to F5 Distributed Cloud:</strong>
                                 <ul>`;
                             analysis.mappable.forEach(item => {
@@ -356,7 +423,7 @@ function formatResults(data) {
                         
                         // Add features requiring alternatives
                         if (analysis.alternatives && analysis.alternatives.length > 0) {
-                            output += `<div class="compatibility-section" style="border-left-color: #f39c12; background-color: rgba(243, 156, 18, 0.1);">
+                            output += `<div class="compatibility-section alternatives-section">
                                 <strong>Requires Alternatives in F5 Distributed Cloud:</strong>
                                 <ul>`;
                             analysis.alternatives.forEach(item => {
@@ -374,7 +441,7 @@ function formatResults(data) {
                         
                         // Add unsupported features
                         if (analysis.unsupported && analysis.unsupported.length > 0) {
-                            output += `<div class="compatibility-section incompatible">
+                            output += `<div class="compatibility-section unsupported-section">
                                 <strong>Not Supported in F5 Distributed Cloud:</strong>
                                 <ul>`;
                             analysis.unsupported.forEach(item => {
@@ -392,7 +459,7 @@ function formatResults(data) {
                         
                         // Add warnings
                         if (analysis.warnings && analysis.warnings.length > 0) {
-                            output += `<div class="compatibility-section" style="border-left-color: #e67e22; background-color: rgba(230, 126, 34, 0.1);">
+                            output += `<div class="compatibility-section warning-section">
                                 <strong>Migration Considerations:</strong>
                                 <ul>`;
                             analysis.warnings.forEach(item => {
@@ -422,7 +489,7 @@ function formatResults(data) {
             // F5 Distributed Cloud Warnings section (new)
             if (vs.f5dc_warnings && vs.f5dc_warnings.length > 0) {
                 output += `
-                    <div class="compatibility-section" style="border-left-color: #f39c12; background-color: rgba(243, 156, 18, 0.1);">
+                    <div class="compatibility-section warning-section">
                         <strong>F5 Distributed Cloud Warnings:</strong>
                         <ul class="issue-list">
                             ${vs.f5dc_warnings.map(item => `<li>${item}</li>`).join('')}
