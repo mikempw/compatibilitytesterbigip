@@ -304,13 +304,113 @@ function formatResults(data) {
                 output += '<p class="info-item"><strong>Pool Members:</strong> No pool members found.</p>';
             }
             
-            // iRules
+            // iRules section with analysis
             if (vs.irules && vs.irules.length > 0) {
                 output += '<div class="info-item"><strong>iRules:</strong><ul>';
                 vs.irules.forEach(rule => {
                     output += `<li>${rule}</li>`;
                 });
                 output += '</ul></div>';
+                
+                // Add iRule analysis if available
+                if (vs.irules_analysis && vs.irules_analysis.length > 0) {
+                    output += `<button class="collapsible">iRules Analysis</button>`;
+                    output += `<div class="content">`;
+                    
+                    vs.irules_analysis.forEach(iruleAnalysis => {
+                        output += `<h4>${iruleAnalysis.name}</h4>`;
+                        
+                        const analysis = iruleAnalysis.analysis;
+                        
+                        if (analysis.error) {
+                            output += `<p>Error analyzing iRule: ${analysis.error}</p>`;
+                            return;
+                        }
+                        
+                        // Check if events were found
+                        if (analysis.events && Object.keys(analysis.events).length > 0) {
+                            output += `<p><strong>Events Found:</strong></p><ul>`;
+                            for (const [eventName, eventContent] of Object.entries(analysis.events)) {
+                                output += `<li>${eventName}</li>`;
+                            }
+                            output += `</ul>`;
+                        }
+                        
+                        // Add mappable features
+                        if (analysis.mappable && analysis.mappable.length > 0) {
+                            output += `<div class="compatibility-section compatible">
+                                <strong>Mappable to F5 Distributed Cloud:</strong>
+                                <ul>`;
+                            analysis.mappable.forEach(item => {
+                                output += `<li>${item.feature}`;
+                                if (item.service_policy) {
+                                    output += ` - ${item.service_policy}`;
+                                }
+                                if (item.event) {
+                                    output += ` (${item.event})`;
+                                }
+                                output += `</li>`;
+                            });
+                            output += `</ul></div>`;
+                        }
+                        
+                        // Add features requiring alternatives
+                        if (analysis.alternatives && analysis.alternatives.length > 0) {
+                            output += `<div class="compatibility-section" style="border-left-color: #f39c12; background-color: rgba(243, 156, 18, 0.1);">
+                                <strong>Requires Alternatives in F5 Distributed Cloud:</strong>
+                                <ul>`;
+                            analysis.alternatives.forEach(item => {
+                                output += `<li>${item.feature}`;
+                                if (item.alternative) {
+                                    output += ` - ${item.alternative}`;
+                                }
+                                if (item.event) {
+                                    output += ` (${item.event})`;
+                                }
+                                output += `</li>`;
+                            });
+                            output += `</ul></div>`;
+                        }
+                        
+                        // Add unsupported features
+                        if (analysis.unsupported && analysis.unsupported.length > 0) {
+                            output += `<div class="compatibility-section incompatible">
+                                <strong>Not Supported in F5 Distributed Cloud:</strong>
+                                <ul>`;
+                            analysis.unsupported.forEach(item => {
+                                output += `<li>${item.feature}`;
+                                if (item.note) {
+                                    output += ` - ${item.note}`;
+                                }
+                                if (item.event) {
+                                    output += ` (${item.event})`;
+                                }
+                                output += `</li>`;
+                            });
+                            output += `</ul></div>`;
+                        }
+                        
+                        // Add warnings
+                        if (analysis.warnings && analysis.warnings.length > 0) {
+                            output += `<div class="compatibility-section" style="border-left-color: #e67e22; background-color: rgba(230, 126, 34, 0.1);">
+                                <strong>Migration Considerations:</strong>
+                                <ul>`;
+                            analysis.warnings.forEach(item => {
+                                output += `<li>${item.feature}`;
+                                if (item.note) {
+                                    output += ` - ${item.note}`;
+                                }
+                                if (item.event) {
+                                    output += ` (${item.event})`;
+                                }
+                                output += `</li>`;
+                            });
+                            output += `</ul></div>`;
+                        }
+                    });
+                    
+                    output += `</div>`; // Close the content div
+                }
             } else {
                 output += '<p class="info-item"><strong>iRules:</strong> No iRules found.</p>';
             }
@@ -318,6 +418,18 @@ function formatResults(data) {
             // Compatibility sections
             output += createCompatibilitySection('NGINX', vs.nginx_compatibility);
             output += createCompatibilitySection('F5 Distributed Cloud', vs.f5dc_compatibility);
+            
+            // F5 Distributed Cloud Warnings section (new)
+            if (vs.f5dc_warnings && vs.f5dc_warnings.length > 0) {
+                output += `
+                    <div class="compatibility-section" style="border-left-color: #f39c12; background-color: rgba(243, 156, 18, 0.1);">
+                        <strong>F5 Distributed Cloud Warnings:</strong>
+                        <ul class="issue-list">
+                            ${vs.f5dc_warnings.map(item => `<li>${item}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
             
             output += '</div>'; // Close detail-section
             output += '</div>'; // Close content
