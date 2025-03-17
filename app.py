@@ -29,6 +29,17 @@ class F5BIGIPAnalyzer:
             response.raise_for_status()
             print("REST API connection established successfully")
             
+            # Check if bash utility is available (for advanced configuration fetching)
+            try:
+                bash_test = self.session.post(
+                    f"https://{hostname}:{port}/mgmt/tm/util/bash",
+                    json={"command": "run", "utilCmdArgs": "-c 'echo test'"}
+                )
+                bash_test.raise_for_status()
+                print("Bash utility available for advanced configuration fetching")
+            except Exception as e:
+                print(f"Warning: Bash utility not available - falling back to API-only mode: {str(e)}")
+            
             # Fetch configuration components
             print("Fetching virtual servers...")
             virtual_servers = self.get_virtual_servers()
@@ -79,8 +90,23 @@ class F5BIGIPAnalyzer:
         
         virtual_servers = []
         for item in data.get('items', []):
-            # Store original configuration string for compatibility checks
-            config_str = str(item)
+            # Get full configuration in tmsh format for compatibility checks
+            vs_name = item.get('fullPath', item.get('name', ''))
+            try:
+                # Get the full tmsh formatted configuration for better compatibility checks
+                cmd_response = self.session.post(
+                    f"https://{self.api_base.split('/')[2]}/mgmt/tm/util/bash",
+                    json={
+                        "command": "run",
+                        "utilCmdArgs": f"-c 'tmsh -q list ltm virtual {vs_name} all-properties'"
+                    }
+                )
+                cmd_response.raise_for_status()
+                config_str = cmd_response.json().get('commandResult', '')
+            except Exception as e:
+                print(f"Warning: Could not get tmsh configuration for {vs_name}: {str(e)}")
+                config_str = str(item)  # Fallback to JSON string representation
+                
             virtual_servers.append({
                 'type': 'ltm virtual',
                 'name': item.get('name', ''),
@@ -96,7 +122,22 @@ class F5BIGIPAnalyzer:
         
         pools = []
         for item in data.get('items', []):
-            config_str = str(item)
+            pool_name = item.get('fullPath', item.get('name', ''))
+            try:
+                # Get the full tmsh formatted configuration
+                cmd_response = self.session.post(
+                    f"https://{self.api_base.split('/')[2]}/mgmt/tm/util/bash",
+                    json={
+                        "command": "run",
+                        "utilCmdArgs": f"-c 'tmsh -q list ltm pool {pool_name} all-properties'"
+                    }
+                )
+                cmd_response.raise_for_status()
+                config_str = cmd_response.json().get('commandResult', '')
+            except Exception as e:
+                print(f"Warning: Could not get tmsh configuration for pool {pool_name}: {str(e)}")
+                config_str = str(item)  # Fallback to JSON string representation
+                
             pools.append({
                 'type': 'ltm pool',
                 'name': item.get('name', ''),
@@ -112,7 +153,22 @@ class F5BIGIPAnalyzer:
         
         irules = []
         for item in data.get('items', []):
-            config_str = str(item)
+            irule_name = item.get('fullPath', item.get('name', ''))
+            try:
+                # Get the full tmsh formatted configuration
+                cmd_response = self.session.post(
+                    f"https://{self.api_base.split('/')[2]}/mgmt/tm/util/bash",
+                    json={
+                        "command": "run",
+                        "utilCmdArgs": f"-c 'tmsh -q list ltm rule {irule_name}'"
+                    }
+                )
+                cmd_response.raise_for_status()
+                config_str = cmd_response.json().get('commandResult', '')
+            except Exception as e:
+                print(f"Warning: Could not get tmsh configuration for iRule {irule_name}: {str(e)}")
+                config_str = str(item)  # Fallback to JSON string representation
+                
             irules.append({
                 'type': 'ltm rule',
                 'name': item.get('name', ''),
