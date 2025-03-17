@@ -2,8 +2,10 @@ from flask import Flask, render_template, request, jsonify
 import requests
 import traceback
 import urllib3
+import re
 from nginx_compatibility import check_nginx_compatibility
 from f5dc_compatibility import check_f5dc_compatibility
+from irule_analyzer import analyze_irule
 
 # Disable SSL warnings - in production, you'd want to handle this properly
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -228,18 +230,73 @@ class F5BIGIPAnalyzer:
                 "asm_policies": len(asm_policies),
                 "apm_policies": len(apm_policies)
             },
-            "virtual_servers": []
+            "virtual_servers": [],
+            "irules_analysis": {}  # Add iRule analysis section
         }
 
+        # Process iRules and add analysis
+        for irule in irules:
+            if 'config' in irule and irule['config'] and 'when' in irule['config']:
+                try:
+                    analysis = analyze_irule(irule['config'])
+                    report["irules_analysis"][irule['name']] = analysis
+                except Exception as e:
+                    print(f"Error analyzing iRule {irule['name']}: {str(e)}")
+                    report["irules_analysis"][irule['name']] = {"error": str(e)}
+
         for vs in virtual_servers:
+            # Extract the irules attached to this VS
+            vs_irules = self.extract_irules(vs)
+            
+            # For each irule referenced, find its configuration
+            irule_configs = []
+            irule_analysis_results = []
+            
+            for irule_name in vs_irules:
+                # Strip any partition prefix if present
+                clean_name = irule_name.split('/')[-1] if '/' in irule_name else irule_name
+                matching_irule = next((ir for ir in irules if ir['name'] == clean_name), None)
+                if matching_irule:
+                    irule_configs.append(matching_irule['config'])
+                    
+                    # Get analysis for this iRule if available
+                    if clean_name in report["irules_analysis"]:
+                        irule_analysis_results.append({
+                            "name": clean_name,
+                            "analysis": report["irules_analysis"][clean_name]
+                        })
+            
+            # Combine virtual server config with all its irules for compatibility check
+            combined_config = vs['config']
+            for irule_config in irule_configs:
+                combined_config += "\n" + irule_config
+            
+            # Run compatibility checks
+            nginx_compat = check_nginx_compatibility(combined_config)
+            f5dc_compat_result = check_f5dc_compatibility(combined_config)
+            
+            # Handle the enhanced F5DC compatibility result format
+            f5dc_incompatibilities = []
+            f5dc_warnings = []
+            
+            if isinstance(f5dc_compat_result, dict):
+                # New format with incompatibilities and warnings
+                f5dc_incompatibilities = f5dc_compat_result.get("incompatible", [])
+                f5dc_warnings = f5dc_compat_result.get("warnings", [])
+            else:
+                # Old format - just a list of incompatibilities
+                f5dc_incompatibilities = f5dc_compat_result
+            
             vs_report = {
                 "name": vs['name'],
                 "destination": self.extract_destination(vs),
                 "pool": self.extract_pool(vs),
                 "pool_members": self.get_pool_members(vs, pools),
-                "irules": self.extract_irules(vs),
-                "nginx_compatibility": check_nginx_compatibility(vs['config']),
-                "f5dc_compatibility": check_f5dc_compatibility(vs['config'])
+                "irules": vs_irules,
+                "irules_analysis": irule_analysis_results,  # Add iRule analysis to VS report
+                "nginx_compatibility": nginx_compat,
+                "f5dc_compatibility": f5dc_incompatibilities,
+                "f5dc_warnings": f5dc_warnings
             }
             report["virtual_servers"].append(vs_report)
 
@@ -300,10 +357,18 @@ class F5BIGIPAnalyzer:
         return members
 
     def extract_irules(self, vs):
+        # First try to get rules from config string, which will work if we got the tmsh output
+        config = vs.get('config', '')
+        irules_match = re.findall(r'rules\s*{\s*([^}]+)}', config)
+        if irules_match and irules_match[0].strip():
+            return irules_match[0].split()
+            
+        # Fallback to API data if regex didn't find anything
         raw_data = vs.get('raw_data', {})
         if 'rules' in raw_data:
             rules = raw_data['rules']
             return rules if isinstance(rules, list) else []
+            
         return []
 
 analyzer = F5BIGIPAnalyzer()
